@@ -1,0 +1,69 @@
+# Integración continua: las tres verificaciones que deben pasar antes de
+# cada merge (formato, estilo y pruebas). El despliegue a Azure (OIDC
+# federado) se agrega en el paquete 1.6, en un workflow aparte.
+name: CI
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verificaciones:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_DB: tivoscanea_db
+          POSTGRES_USER: tivoscanea_user
+          POSTGRES_PASSWORD: clave-solo-para-ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U tivoscanea_user -d tivoscanea_db"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      # Valores ficticios sólo para CI: no son secretos de ningún entorno real.
+      DJANGO_SECRET_KEY: ci-only-not-a-secret-do-not-reuse
+      DJANGO_DEBUG: "False"
+      DB_NAME: tivoscanea_db
+      DB_USER: tivoscanea_user
+      DB_PASSWORD: clave-solo-para-ci
+      DB_HOST: localhost
+      DB_PORT: "5432"
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Instalar dependencias
+        run: pip install -r requirements.txt
+
+      - name: Formato (black)
+        run: black --check apps tivoscanea manage.py
+
+      - name: Estilo (flake8)
+        run: flake8 apps tivoscanea manage.py
+
+      - name: Migraciones al día
+        run: python manage.py makemigrations --check --dry-run
+
+      - name: Pruebas (pytest)
+        run: python -m pytest -q
