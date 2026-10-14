@@ -106,8 +106,19 @@ Informe 2. **No los traduzcas ni los "normalices"** si tocás estos modelos.
   (`settings.UMBRAL_CAIDA_VENTAS_PORCENTAJE`, default 20%). Usar
   `annotate`/`aggregate`, nunca traer todas las filas a Python.
 - **Despliegue** (fase 7): Dockerfile/Azure App Service, CI/CD, Key Vault.
-- Datos de prueba (seed de ~50 productos + ventas históricas) — todavía no se
-  generó; útil antes de probar reportería.
+
+## Datos de prueba
+
+`python manage.py cargar_datos_prueba` (en `apps/ventas/management/commands/`)
+carga 50 productos (códigos EAN-13 con prefijo `7809999`), usuarios
+`admin@tivoscanea.cl` / `vendedor@tivoscanea.cl` (password `tivoscanea123`) y
+90 días de ventas con picos por franja horaria, más ventas en fin de semana y
+~2% de anuladas. Usa los servicios de negocio, así que el stock siempre cuadra
+con la bitácora de `MovimientoStock`; las fechas se envejecen después con
+`update()`. Opciones: `--dias`, `--ventas-por-dia`, `--semilla`,
+`--caida-ultimos-dias N --caida-porcentaje P` (para probar la alerta de caída),
+`--limpiar` (borra TODO inventario y ventas). Se niega a correr con
+`DEBUG=False` salvo `--forzar`.
 
 ## Comandos frecuentes
 
