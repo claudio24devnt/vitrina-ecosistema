@@ -1,0 +1,15 @@
+{% extends "base.html" %}
+
+{% block titulo %}Sin permiso — TivoScanea{% endblock %}
+
+{% block contenido %}
+<div class="row justify-content-center mt-4">
+    <div class="col-lg-6">
+        <div class="alert alert-warning">
+            <h1 class="h4">No tienes permiso para entrar aquí</h1>
+            <p class="mb-2">Esta sección es sólo para el administrador del almacén.</p>
+            <a href="{% url 'inicio' %}" class="btn btn-outline-dark btn-sm">Volver al inicio</a>
+        </div>
+    </div>
+</div>
+{% endblock %}

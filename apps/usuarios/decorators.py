@@ -15,7 +15,7 @@ def rol_requerido(*roles):
         @login_required
         def _envuelta(request, *args, **kwargs):
             if request.user.rol not in roles:
-                raise PermissionDenied("No tenés permiso para acceder a esta sección.")
+                raise PermissionDenied("No tienes permiso para entrar a esta sección.")
             return view_func(request, *args, **kwargs)
 
         return _envuelta

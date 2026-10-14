@@ -46,6 +46,7 @@ MIDDLEWARE = [
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
     "django.contrib.auth.middleware.AuthenticationMiddleware",
+    "apps.almacenes.middleware.AlmacenActualMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
 ]
@@ -89,8 +90,7 @@ DATABASES = {
 AUTH_USER_MODEL = "usuarios.Usuario"
 
 LOGIN_URL = "usuarios:login"
-# La pantalla de inicio se reconstruye en 1.4.2 sobre el modelo multi-almacén.
-LOGIN_REDIRECT_URL = "/"
+LOGIN_REDIRECT_URL = "inicio"
 LOGOUT_REDIRECT_URL = "usuarios:login"
 
 
@@ -132,6 +132,16 @@ STATIC_URL = "static/"
 STATICFILES_DIRS = [BASE_DIR / "static"]
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
+
+
+# API REST: sesión de Django, sólo usuarios autenticados, respuestas JSON.
+REST_FRAMEWORK = {
+    "DEFAULT_AUTHENTICATION_CLASSES": [
+        "rest_framework.authentication.SessionAuthentication",
+    ],
+    "DEFAULT_PERMISSION_CLASSES": ["rest_framework.permissions.IsAuthenticated"],
+    "DEFAULT_RENDERER_CLASSES": ["rest_framework.renderers.JSONRenderer"],
+}
 
 
 # Reglas de negocio configurables (ver Informe 2)

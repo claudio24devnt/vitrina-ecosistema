@@ -1,37 +1,73 @@
-<!DOCTYPE html>
+{% load static %}<!DOCTYPE html>
 <html lang="es-CL">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>{% block titulo %}TivoScanea{% endblock %}</title>
-    <link rel="stylesheet" href="/static/css/estilos.css">
+    <link rel="stylesheet" href="{% static 'vendor/bootstrap-5.3.8/bootstrap.min.css' %}">
+    <link rel="stylesheet" href="{% static 'css/tivoscanea.css' %}">
 </head>
-<body>
+<body class="bg-body-tertiary">
     {% if user.is_authenticated %}
-    <header class="barra-superior">
-        <div class="marca">TivoScanea</div>
-        <nav class="menu">
-            {# Enlaces de Ventas e Inventario: se reponen en 1.4.2 y 1.4.3. #}
-        </nav>
-        <div class="usuario-actual">
-            <span>{{ user.nombre }} ({{ user.get_rol_display }})</span>
-            <form action="{% url 'usuarios:logout' %}" method="post">
-                {% csrf_token %}
-                <button type="submit" class="enlace-boton">Salir</button>
-            </form>
+    {% url 'inicio' as url_inicio %}
+    {% url 'inventario:lista_productos' as url_productos %}
+    {% url 'inventario:escanear' as url_escanear %}
+    {% url 'inventario:categorias' as url_categorias %}
+    {% url 'usuarios:vendedores' as url_vendedores %}
+    <nav class="navbar navbar-expand-md navbar-dark bg-success mb-4">
+        <div class="container">
+            <a class="navbar-brand fw-bold" href="{{ url_inicio }}">TivoScanea</a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse"
+                    data-bs-target="#menu-principal" aria-controls="menu-principal"
+                    aria-expanded="false" aria-label="Abrir menú">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="menu-principal">
+                <ul class="navbar-nav me-auto">
+                    {% if user.es_admin %}
+                    <li class="nav-item">
+                        <a class="nav-link {% if request.path == url_escanear %}active{% endif %}"
+                           href="{{ url_escanear }}">Escanear producto</a>
+                    </li>
+                    {% endif %}
+                    <li class="nav-item">
+                        <a class="nav-link {% if request.path == url_productos %}active{% endif %}"
+                           href="{{ url_productos }}">Inventario</a>
+                    </li>
+                    {% if user.es_admin %}
+                    <li class="nav-item">
+                        <a class="nav-link {% if request.path == url_categorias %}active{% endif %}"
+                           href="{{ url_categorias }}">Categorías</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link {% if request.path == url_vendedores %}active{% endif %}"
+                           href="{{ url_vendedores }}">Vendedores</a>
+                    </li>
+                    {% endif %}
+                </ul>
+                <div class="d-flex align-items-center gap-3 text-white">
+                    <span class="small">{{ user.nombre }} · {{ user.get_rol_display }}</span>
+                    <form action="{% url 'usuarios:logout' %}" method="post" class="m-0">
+                        {% csrf_token %}
+                        <button type="submit" class="btn btn-outline-light btn-sm">Salir</button>
+                    </form>
+                </div>
+            </div>
         </div>
-    </header>
+    </nav>
     {% endif %}
 
-    <main class="contenido">
-        {% if messages %}
-            <ul class="mensajes">
-                {% for message in messages %}
-                    <li class="mensaje mensaje-{{ message.tags }}">{{ message }}</li>
-                {% endfor %}
-            </ul>
-        {% endif %}
+    <main class="container pb-5">
+        {% for mensaje in messages %}
+            <div class="alert alert-{% if mensaje.tags == 'error' %}danger{% else %}{{ mensaje.tags }}{% endif %} alert-dismissible fade show" role="alert">
+                {{ mensaje }}
+                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Cerrar"></button>
+            </div>
+        {% endfor %}
         {% block contenido %}{% endblock %}
     </main>
+
+    <script src="{% static 'vendor/bootstrap-5.3.8/bootstrap.bundle.min.js' %}"></script>
+    {% block scripts %}{% endblock %}
 </body>
 </html>

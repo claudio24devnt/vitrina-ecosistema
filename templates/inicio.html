@@ -1,0 +1,44 @@
+{% extends "base.html" %}
+
+{% block titulo %}Inicio — TivoScanea{% endblock %}
+
+{% block contenido %}
+<h1 class="h3 mb-1">Hola, {{ user.nombre }}</h1>
+<p class="text-secondary mb-4">{{ request.almacen.razon_social }}</p>
+
+<div class="row g-3 mb-4">
+    {% if user.es_admin %}
+    <div class="col-md-6">
+        <a href="{% url 'inventario:escanear' %}" class="btn btn-success w-100 accion-inicio d-flex align-items-center justify-content-center">
+            Escanear producto
+        </a>
+    </div>
+    {% endif %}
+    <div class="col-md-6">
+        <a href="{% url 'inventario:lista_productos' %}" class="btn btn-outline-success w-100 accion-inicio d-flex align-items-center justify-content-center">
+            Ver inventario
+        </a>
+    </div>
+</div>
+
+<div class="row g-3">
+    <div class="col-6 col-md-3">
+        <div class="card h-100">
+            <div class="card-body">
+                <div class="text-secondary small">Productos</div>
+                <div class="cifra-grande">{{ total_productos }}</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-6 col-md-3">
+        <a href="{% url 'inventario:lista_productos' %}?stock_bajo=1" class="text-decoration-none">
+            <div class="card h-100 {% if total_stock_bajo %}border-warning{% endif %}">
+                <div class="card-body">
+                    <div class="text-secondary small">Con stock bajo</div>
+                    <div class="cifra-grande {% if total_stock_bajo %}text-warning-emphasis{% else %}text-body{% endif %}">{{ total_stock_bajo }}</div>
+                </div>
+            </div>
+        </a>
+    </div>
+</div>
+{% endblock %}
