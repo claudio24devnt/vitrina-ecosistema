@@ -414,10 +414,22 @@ años.
 - **1.3.2 (hecho):** las nueve tablas, migraciones desde cero, mixin de
   aislamiento, `crear_almacen()` con las cinco franjas, `anotar_franja()` en
   `apps/reporteria/servicios.py`.
-- **Sin interfaz:** las vistas, servicios y pruebas del prototipo anterior se
-  sacaron (siguen en el historial de git, commit `a51dd2e`); las plantillas y
-  el JS quedaron sin usar; se rehacen con Bootstrap 5 en 1.4.2 y 1.4.3. `LOGIN_REDIRECT_URL = "/"`
-  no tiene página todavía.
+- **1.4.2 (hecho):** CU-01 y CU-06.
+  - Servicios: `apps/inventario/servicios.py` (registrar producto, sumar
+    stock, editar sin tocar stock, categorías; `registrar_movimiento` impone
+    el almacén del producto) y `apps/usuarios/servicios.py` (crear vendedor).
+    Los errores para el usuario son `ReglaDeNegocioError`
+    (`apps/almacenes/errores.py`).
+  - `request.almacen` lo pone `AlmacenActualMiddleware`.
+  - API DRF bajo `/api/` (namespace `api`): `producto_por_codigo` (ambos
+    roles, la usará la caja) y `entrada_stock` (sólo admin, permiso
+    `EsAdministrador`). Sesión + CSRF.
+  - Pantallas Bootstrap 5 (copiado en `static/vendor/bootstrap-5.3.8/`, sin
+    CDN): inicio, inventario (vendedor sólo consulta), escanear
+    (`static/js/escanear.js`, foco en el campo de escaneo), alta, edición,
+    categorías y vendedores. Formularios con `FormularioBootstrap`.
+- Montos en pantalla con el filtro `pesos` (`{% load formato %}`).
+- Textos en español de Chile con tuteo («Ingresa», «Escribe»), sin voseo.
 - Regla que se mantiene: **toda variación de `stock_actual` pasa por la capa
   de servicios y genera un `movimiento_stock`**.
 

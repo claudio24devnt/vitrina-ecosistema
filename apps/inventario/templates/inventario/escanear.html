@@ -1,0 +1,70 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block titulo %}Escanear producto — TivoScanea{% endblock %}
+
+{% block contenido %}
+<div class="row justify-content-center">
+    <div class="col-lg-8">
+        <h1 class="h3 mb-3">Escanear producto</h1>
+
+        <div class="card shadow-sm mb-3">
+            <div class="card-body">
+                <label for="campo-codigo" class="form-label">
+                    Pasa el lector por el código de barras. Si no se puede leer, escríbelo y presiona Enter.
+                </label>
+                <input type="text" id="campo-codigo" class="form-control form-control-lg campo-escaneo"
+                       autocomplete="off" inputmode="numeric" maxlength="20" autofocus
+                       value="{{ codigo }}">
+            </div>
+        </div>
+
+        {% csrf_token %}
+        <div id="resultado" aria-live="polite"
+             data-url-buscar="{% url 'api:producto_por_codigo' 'CODIGO' %}"
+             data-url-entrada="{% url 'api:entrada_stock' 0 %}"
+             data-url-nuevo="{% url 'inventario:nuevo_producto' %}"></div>
+    </div>
+</div>
+
+<template id="plantilla-existe">
+    <div class="card border-success shadow-sm">
+        <div class="card-body">
+            <h2 class="h4 mb-1" data-campo="nombre"></h2>
+            <p class="text-secondary mb-3">
+                <span data-campo="categoria"></span> · Precio <strong data-campo="precio"></strong>
+            </p>
+            <p class="fs-5 mb-1">Stock actual: <strong data-campo="stock_actual"></strong>
+                <span class="text-secondary fs-6">(mínimo <span data-campo="stock_minimo"></span>)</span></p>
+            <div class="alert alert-warning py-2 mt-2" data-campo="aviso_stock_bajo" hidden>Este producto tiene stock bajo.</div>
+
+            <form class="row g-2 align-items-end mt-2" data-formulario-entrada novalidate>
+                <div class="col-sm-5">
+                    <label class="form-label" for="cantidad-entrada">¿Cuántas unidades llegaron?</label>
+                    <input type="number" id="cantidad-entrada" class="form-control form-control-lg"
+                           min="1" max="9999" step="1" value="1" required>
+                </div>
+                <div class="col-sm-7">
+                    <button type="submit" class="btn btn-success btn-lg w-100">Sumar al stock</button>
+                </div>
+                <div class="col-12">
+                    <div class="text-danger small" data-campo="error" hidden></div>
+                </div>
+            </form>
+        </div>
+    </div>
+</template>
+
+<template id="plantilla-no-existe">
+    <div class="card border-warning shadow-sm">
+        <div class="card-body">
+            <p class="fs-5 mb-3">No hay ningún producto con el código <strong data-campo="codigo"></strong>.</p>
+            <a class="btn btn-success btn-lg" data-campo="enlace-nuevo">Registrar este producto</a>
+        </div>
+    </div>
+</template>
+{% endblock %}
+
+{% block scripts %}
+<script src="{% static 'js/escanear.js' %}"></script>
+{% endblock %}

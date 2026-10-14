@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+
+{% block titulo %}Vendedores — TivoScanea{% endblock %}
+
+{% block contenido %}
+<h1 class="h3 mb-3">Vendedores</h1>
+<div class="row g-4">
+    <div class="col-lg-5">
+        <div class="card shadow-sm">
+            <div class="card-body">
+                <h2 class="h5">Crear vendedor</h2>
+                <p class="small text-secondary">
+                    El vendedor puede registrar ventas y consultar el stock. No ve reportes ni cambia precios.
+                </p>
+                <form method="post" novalidate>
+                    {% csrf_token %}
+                    {% include "_campos_formulario.html" %}
+                    <button type="submit" class="btn btn-success">Crear vendedor</button>
+                </form>
+            </div>
+        </div>
+    </div>
+    <div class="col-lg-7">
+        {% if vendedores %}
+        <ul class="list-group shadow-sm">
+            {% for vendedor in vendedores %}
+            <li class="list-group-item d-flex justify-content-between align-items-center">
+                <span>{{ vendedor.nombre }}</span>
+                <span class="small text-secondary">{{ vendedor.email }}</span>
+            </li>
+            {% endfor %}
+        </ul>
+        {% else %}
+        <div class="alert alert-light border">Todavía no hay vendedores en este almacén.</div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

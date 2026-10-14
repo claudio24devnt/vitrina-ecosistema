@@ -82,7 +82,9 @@ class TestPaginasConSesion:
     def test_layout_con_sesion_iniciada_no_rompe(self, client, datos_a):
         # base.html no debe enlazar a URLs que no existen (regresión del 1.3.2).
         client.force_login(datos_a.vendedor)
-        assert client.get("/cuentas/login/").status_code == 200
+        assert client.get("/").status_code == 200
+        # Con sesión iniciada, el login redirige al inicio.
+        assert client.get("/cuentas/login/").status_code == 302
 
     def test_admin_lista_las_nueve_tablas_sin_errores(self, client, datos_a):
         datos_a.admin.is_staff = datos_a.admin.is_superuser = True

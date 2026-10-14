@@ -1,65 +1,80 @@
 {% extends "base.html" %}
+{% load formato %}
 
-{% block titulo %}Productos — TivoScanea{% endblock %}
+{% block titulo %}Inventario — TivoScanea{% endblock %}
 
 {% block contenido %}
-<div class="encabezado-seccion">
-    <h1>Productos</h1>
-    <div class="fila-acciones">
-        <a href="{% url 'inventario:escaneo' %}" class="boton">Escanear producto</a>
-        <a href="{% url 'inventario:crear_producto' %}" class="boton boton-secundario">Alta manual</a>
+<div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
+    <h1 class="h3 m-0">Inventario</h1>
+    {% if user.es_admin %}
+    <div class="d-flex gap-2">
+        <a href="{% url 'inventario:escanear' %}" class="btn btn-success">Escanear producto</a>
+        <a href="{% url 'inventario:nuevo_producto' %}" class="btn btn-outline-success">Registrar sin lector</a>
     </div>
+    {% endif %}
 </div>
 
-{% if total_stock_bajo > 0 %}
-    <div class="mensaje mensaje-warning">
-        ⚠ Hay {{ total_stock_bajo }} producto{{ total_stock_bajo|pluralize }} con stock bajo el mínimo.
-    </div>
+{% if total_stock_bajo %}
+<div class="alert alert-warning d-flex flex-wrap justify-content-between align-items-center gap-2">
+    <span>Hay {{ total_stock_bajo }} producto{{ total_stock_bajo|pluralize }} con stock bajo el mínimo.</span>
+    {% if solo_stock_bajo %}
+        <a href="{% url 'inventario:lista_productos' %}" class="btn btn-sm btn-outline-dark">Ver todos</a>
+    {% else %}
+        <a href="?stock_bajo=1" class="btn btn-sm btn-warning">Ver sólo esos</a>
+    {% endif %}
+</div>
 {% endif %}
 
-<form method="get" class="buscador">
-    <input type="text" name="q" value="{{ query }}" placeholder="Buscar por nombre o código de barras">
-    <button type="submit" class="boton boton-secundario">Buscar</button>
+<form method="get" class="row g-2 mb-3" role="search">
+    <div class="col">
+        <input type="search" name="q" value="{{ busqueda }}" class="form-control"
+               placeholder="Buscar por nombre o código de barras" aria-label="Buscar producto">
+    </div>
+    {% if solo_stock_bajo %}<input type="hidden" name="stock_bajo" value="1">{% endif %}
+    <div class="col-auto"><button type="submit" class="btn btn-outline-secondary">Buscar</button></div>
 </form>
 
-<table>
-    <thead>
-        <tr>
-            <th>Código</th>
-            <th>Nombre</th>
-            <th>Categoría</th>
-            <th>Precio</th>
-            <th>Stock</th>
-            <th>Mínimo</th>
-            <th>Acciones</th>
-        </tr>
-    </thead>
-    <tbody>
-        {% for producto in productos %}
-        <tr class="{% if producto.stock_bajo %}stock-bajo{% endif %}">
-            <td data-etiqueta="Código">{{ producto.codigo_barras }}</td>
-            <td data-etiqueta="Nombre">
-                {{ producto.nombre }}
-                {% if producto.stock_bajo %}<div class="etiqueta-stock-bajo">STOCK BAJO</div>{% endif %}
-            </td>
-            <td data-etiqueta="Categoría">{{ producto.id_categoria.nombre }}</td>
-            <td data-etiqueta="Precio">${{ producto.precio }}</td>
-            <td data-etiqueta="Stock">{{ producto.stock_actual }}</td>
-            <td data-etiqueta="Mínimo">{{ producto.stock_minimo }}</td>
-            <td data-etiqueta="Acciones">
-                <div class="fila-acciones">
-                    <a href="{% url 'inventario:editar_producto' producto.id_producto %}" class="boton boton-secundario">Editar</a>
-                    <form method="post" action="{% url 'inventario:eliminar_producto' producto.id_producto %}"
-                          onsubmit="return confirm('¿Eliminar {{ producto.nombre|escapejs }}?');">
-                        {% csrf_token %}
-                        <button type="submit" class="boton boton-peligro">Eliminar</button>
-                    </form>
-                </div>
-            </td>
-        </tr>
-        {% empty %}
-        <tr><td colspan="7">No hay productos que coincidan con la búsqueda.</td></tr>
-        {% endfor %}
-    </tbody>
-</table>
+{% if productos %}
+<div class="table-responsive bg-white rounded shadow-sm">
+    <table class="table table-hover align-middle mb-0">
+        <thead class="table-light">
+            <tr>
+                <th>Producto</th>
+                <th class="d-none d-md-table-cell">Categoría</th>
+                <th class="text-end">Precio</th>
+                <th class="text-end">Stock</th>
+                <th class="text-end d-none d-sm-table-cell">Mínimo</th>
+                {% if user.es_admin %}<th></th>{% endif %}
+            </tr>
+        </thead>
+        <tbody>
+            {% for producto in productos %}
+            <tr class="{% if producto.stock_bajo %}table-warning{% endif %}">
+                <td>
+                    <div class="fw-semibold">{{ producto.nombre }}</div>
+                    <div class="small text-secondary">{{ producto.codigo_barras }}</div>
+                    {% if producto.stock_bajo %}<span class="badge text-bg-warning">Stock bajo</span>{% endif %}
+                </td>
+                <td class="d-none d-md-table-cell">{{ producto.id_categoria.nombre|default:"—" }}</td>
+                <td class="text-end">{{ producto.precio|pesos }}</td>
+                <td class="text-end fw-semibold">{{ producto.stock_actual }}</td>
+                <td class="text-end d-none d-sm-table-cell">{{ producto.stock_minimo }}</td>
+                {% if user.es_admin %}
+                <td class="text-end">
+                    <a href="{% url 'inventario:editar_producto' producto.id_producto %}" class="btn btn-sm btn-outline-secondary">Editar</a>
+                </td>
+                {% endif %}
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% elif busqueda or solo_stock_bajo %}
+<div class="alert alert-light border">No hay productos que coincidan con la búsqueda.</div>
+{% else %}
+<div class="alert alert-light border">
+    Todavía no hay productos registrados.
+    {% if user.es_admin %}<a href="{% url 'inventario:escanear' %}">Escanea el primero</a>.{% endif %}
+</div>
+{% endif %}
 {% endblock %}

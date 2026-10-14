@@ -1,33 +1,39 @@
 {% extends "base.html" %}
 
-{% block titulo %}{% if modo == "crear" %}Nuevo producto{% else %}Editar producto{% endif %} — TivoScanea{% endblock %}
+{% block titulo %}{% if modo == "nuevo" %}Registrar producto{% else %}Editar producto{% endif %} — TivoScanea{% endblock %}
 
 {% block contenido %}
-<div class="tarjeta">
-    <h1>{% if modo == "crear" %}Nuevo producto{% else %}Editar «{{ producto.nombre }}»{% endif %}</h1>
-
-    <form method="post">
-        {% csrf_token %}
-        {% for field in form %}
-        <div class="campo">
-            <label for="{{ field.id_for_label }}">{{ field.label }}</label>
-            {{ field }}
-            {% if field.errors %}
-                <span class="mensaje mensaje-error">{{ field.errors|striptags }}</span>
-            {% endif %}
-            {% if field.help_text %}<small>{{ field.help_text }}</small>{% endif %}
+<div class="row justify-content-center">
+    <div class="col-lg-6">
+        <h1 class="h3 mb-3">
+            {% if modo == "nuevo" %}Registrar producto{% else %}Editar «{{ producto.nombre }}»{% endif %}
+        </h1>
+        <div class="card shadow-sm">
+            <div class="card-body">
+                {% if modo == "editar" %}
+                <p class="text-secondary">
+                    Stock actual: <strong>{{ producto.stock_actual }}</strong>. El stock no se edita aquí:
+                    se suma escaneando el producto.
+                </p>
+                {% endif %}
+                <form method="post" novalidate>
+                    {% csrf_token %}
+                    {% include "_campos_formulario.html" %}
+                    <div class="d-flex gap-2">
+                        <button type="submit" class="btn btn-success btn-lg">
+                            {% if modo == "nuevo" %}Registrar{% else %}Guardar cambios{% endif %}
+                        </button>
+                        <a href="{% if modo == 'nuevo' %}{% url 'inventario:escanear' %}{% else %}{% url 'inventario:lista_productos' %}{% endif %}"
+                           class="btn btn-outline-secondary btn-lg">Cancelar</a>
+                    </div>
+                </form>
+            </div>
         </div>
-        {% endfor %}
-
-        {% if modo == "editar" %}
-        <p><small>El stock actual ({{ producto.stock_actual }} unidades) no se edita acá:
-        usá «Agregar stock» desde la lista de productos o el escaneo.</small></p>
+        {% if modo == "nuevo" %}
+        <p class="small text-secondary mt-2">
+            ¿Falta la categoría? <a href="{% url 'inventario:categorias' %}">Créala aquí</a> o deja el producto sin categoría.
+        </p>
         {% endif %}
-
-        <div class="fila-acciones">
-            <button type="submit" class="boton">Guardar</button>
-            <a href="{% url 'inventario:lista_productos' %}" class="boton boton-secundario">Cancelar</a>
-        </div>
-    </form>
+    </div>
 </div>
 {% endblock %}
