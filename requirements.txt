@@ -1,4 +1,6 @@
-Django==6.1.1
+# Django 5.2 LTS: soporte extendido (parches de seguridad) hasta abril de 2028,
+# segun https://www.djangoproject.com/download/ (verificado 2026-10-14).
+Django==5.2.18
 djangorestframework==3.18.1
 psycopg[binary]==3.3.6
 django-environ==0.14.0
