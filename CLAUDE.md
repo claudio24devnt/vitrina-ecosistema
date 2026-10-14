@@ -35,7 +35,7 @@ ante un docente y se pilotea en un almacén real.
 | Lenguaje | Python 3.12 |
 | Framework | **Django 5.2 LTS** (soporte extendido hasta abril 2028) + Django REST Framework |
 | Base de datos | PostgreSQL 16 |
-| Interfaz | Plantillas Django + HTML/CSS/JS — **Bootstrap: PENDIENTE, ver §2.4** |
+| Interfaz | Plantillas Django + HTML/CSS/JS vanilla + **Bootstrap 5** (ver §2.4) |
 | Nube | Azure: App Service (Linux) + Database for PostgreSQL Flexible Server |
 | Pruebas | pytest + pytest-django |
 | Calidad | flake8 + black (line-length 95, ver `pyproject.toml` / `setup.cfg`) |
@@ -64,12 +64,12 @@ almacén piloto en la semana 5).
   ni gráficos en cero.
 - Mes sin mes anterior comparable → omitir la comparación e indicar el motivo.
 
-### 2.4 Bootstrap — decisión pendiente (Claudio consulta al docente)
+### 2.4 Bootstrap 5 — resuelto (2026-10-14)
 
-El Informe 2 selecciona «HTML, CSS y JavaScript con Bootstrap» (4,80/5 frente
-a React 2,95 y Vue 3,70). El CLAUDE.md anterior decía «sin Bootstrap, es un
-requisito del proyecto» y no se sabe de dónde salió esa regla. Claudio lo
-resuelve. **Hasta entonces, no tocar la capa de presentación.**
+Se usa Bootstrap 5, como selecciona el Informe 2 (4,80/5 frente a React 2,95 y
+Vue 3,70). La regla «sin Bootstrap» del CLAUDE.md anterior no venía del
+docente ni de la asignatura: fue una propuesta del asistente y queda
+descartada. Sigue prohibido cualquier framework SPA (React, Vue).
 
 ---
 
@@ -416,7 +416,7 @@ años.
   `apps/reporteria/servicios.py`.
 - **Sin interfaz:** las vistas, servicios y pruebas del prototipo anterior se
   sacaron (siguen en el historial de git, commit `a51dd2e`); las plantillas y
-  el JS quedaron sin usar hasta resolver Bootstrap. `LOGIN_REDIRECT_URL = "/"`
+  el JS quedaron sin usar; se rehacen con Bootstrap 5 en 1.4.2 y 1.4.3. `LOGIN_REDIRECT_URL = "/"`
   no tiene página todavía.
 - Regla que se mantiene: **toda variación de `stock_actual` pasa por la capa
   de servicios y genera un `movimiento_stock`**.
