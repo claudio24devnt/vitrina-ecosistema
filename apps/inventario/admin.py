@@ -5,7 +5,8 @@ from .models import Categoria, MovimientoStock, Producto
 
 @admin.register(Categoria)
 class CategoriaAdmin(admin.ModelAdmin):
-    list_display = ["id_categoria", "nombre"]
+    list_display = ["id_categoria", "id_almacen", "nombre"]
+    list_filter = ["id_almacen"]
     search_fields = ["nombre"]
 
 
@@ -13,6 +14,7 @@ class CategoriaAdmin(admin.ModelAdmin):
 class ProductoAdmin(admin.ModelAdmin):
     list_display = [
         "id_producto",
+        "id_almacen",
         "codigo_barras",
         "nombre",
         "id_categoria",
@@ -20,7 +22,7 @@ class ProductoAdmin(admin.ModelAdmin):
         "stock_actual",
         "stock_minimo",
     ]
-    list_filter = ["id_categoria"]
+    list_filter = ["id_almacen"]
     search_fields = ["nombre", "codigo_barras"]
 
 
@@ -34,6 +36,6 @@ class MovimientoStockAdmin(admin.ModelAdmin):
         "fecha_hora",
         "id_venta",
     ]
-    list_filter = ["tipo"]
+    list_filter = ["id_almacen", "tipo"]
     search_fields = ["id_producto__nombre", "id_producto__codigo_barras"]
     readonly_fields = ["fecha_hora"]
