@@ -7,9 +7,14 @@
 <p class="text-secondary mb-4">{{ request.almacen.razon_social }}</p>
 
 <div class="row g-3 mb-4">
+    <div class="col-12">
+        <a href="{% url 'ventas:caja' %}" class="btn btn-success w-100 accion-inicio d-flex align-items-center justify-content-center fs-3">
+            Abrir caja
+        </a>
+    </div>
     {% if user.es_admin %}
     <div class="col-md-6">
-        <a href="{% url 'inventario:escanear' %}" class="btn btn-success w-100 accion-inicio d-flex align-items-center justify-content-center">
+        <a href="{% url 'inventario:escanear' %}" class="btn btn-outline-success w-100 accion-inicio d-flex align-items-center justify-content-center">
             Escanear producto
         </a>
     </div>

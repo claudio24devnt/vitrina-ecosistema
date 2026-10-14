@@ -452,6 +452,19 @@ años.
     CDN): inicio, inventario (vendedor sólo consulta), escanear
     (`static/js/escanear.js`, foco en el campo de escaneo), alta, edición,
     categorías y vendedores. Formularios con `FormularioBootstrap`.
+- **1.4.3 (hecho, en rama):** CU-02, CU-03 y ajuste de inventario.
+  - `apps/ventas/servicios.py`: `registrar_venta` (una transacción; precio del
+    servidor; 6a lanza `StockInsuficienteError` sin escribir nada salvo con
+    `confirmar_diferencias`; alta rápida verificada en el servidor: el producto
+    no tiene movimientos) y `anular_venta` (ambos roles, motivo ≥ 5, plazo).
+  - Un solo camino de ajuste: `aplicar_ajuste` en `apps/inventario/servicios.py`
+    (6a, alta rápida y ajuste por conteo del administrador).
+  - API: `POST /api/ventas/` (201 / 409 con diferencias / 400) y
+    `POST /api/productos/alta-rapida/` (201 / 409 con el existente / 400).
+  - Pantallas: caja (`static/js/caja.js`), ventas del día, comprobante
+    imprimible (`@media print` en `tivoscanea.css`) y ajuste de inventario.
+  - Indicador de exactitud: `ajustes_de_exactitud()` en
+    `apps/reporteria/servicios.py` (excluye la alta rápida).
 - Montos en pantalla con el filtro `pesos` (`{% load formato %}`).
 - Textos en español de Chile con tuteo («Ingresa», «Escribe»), sin voseo.
 - Regla que se mantiene: **toda variación de `stock_actual` pasa por la capa

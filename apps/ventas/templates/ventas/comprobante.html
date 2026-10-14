@@ -1,0 +1,94 @@
+{% extends "base.html" %}
+{% load formato %}
+
+{% block titulo %}Venta N° {{ venta.id_venta }} — TivoScanea{% endblock %}
+
+{% block contenido %}
+<div class="row justify-content-center">
+    <div class="col-md-8 col-lg-5">
+        {% if recien_registrada %}
+        <div class="d-flex gap-2 mb-3 no-imprimir">
+            <a href="{% url 'ventas:caja' %}" class="btn btn-success btn-lg flex-fill" autofocus>Nueva venta</a>
+            <button type="button" class="btn btn-outline-secondary btn-lg" onclick="window.print()">Imprimir</button>
+        </div>
+        {% endif %}
+
+        <div class="card shadow-sm comprobante {% if venta.estado == 'anulada' %}border-danger{% endif %}">
+            <div class="card-body">
+                <p class="text-center fw-bold border border-dark rounded py-1 mb-3">
+                    Comprobante interno de venta — no es boleta electrónica
+                </p>
+                <div class="text-center mb-3">
+                    <div class="fw-semibold">{{ venta.id_almacen.razon_social }}</div>
+                    <div class="small">RUT {{ venta.id_almacen.rut }}</div>
+                </div>
+
+                {% if venta.estado == 'anulada' %}
+                <div class="alert alert-danger text-center fw-bold py-2">VENTA ANULADA</div>
+                {% endif %}
+
+                <dl class="row small mb-2">
+                    <dt class="col-5">Venta N°</dt><dd class="col-7 text-end">{{ venta.id_venta }}</dd>
+                    <dt class="col-5">Fecha</dt><dd class="col-7 text-end">{{ venta.fecha_hora|date:"d/m/Y H:i" }}</dd>
+                    <dt class="col-5">Atendió</dt><dd class="col-7 text-end">{{ venta.id_usuario.nombre }}</dd>
+                    <dt class="col-5">Medio de pago</dt><dd class="col-7 text-end">{{ venta.get_medio_pago_display }}</dd>
+                </dl>
+
+                <table class="table table-sm mb-2">
+                    <tbody>
+                        {% for detalle in detalles %}
+                        <tr>
+                            <td>
+                                {{ detalle.id_producto.nombre }}
+                                <div class="small text-secondary">{{ detalle.cantidad }} × {{ detalle.precio_unitario|pesos }}</div>
+                            </td>
+                            <td class="text-end">{{ detalle.subtotal|pesos }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+                <div class="d-flex justify-content-between fs-4 fw-bold">
+                    <span>Total</span><span>{{ venta.total|pesos }}</span>
+                </div>
+
+                {% if venta.estado == 'anulada' %}
+                <hr>
+                <dl class="row small mb-0">
+                    <dt class="col-5">Anuló</dt><dd class="col-7 text-end">{{ venta.id_usuario_anulacion.nombre }}</dd>
+                    <dt class="col-5">Cuándo</dt><dd class="col-7 text-end">{{ venta.fecha_anulacion|date:"d/m/Y H:i" }}</dd>
+                    <dt class="col-5">Motivo</dt><dd class="col-7 text-end">{{ venta.motivo_anulacion }}</dd>
+                </dl>
+                {% endif %}
+            </div>
+        </div>
+
+        <div class="no-imprimir mt-3">
+            {% if not recien_registrada %}
+            <div class="d-flex gap-2 mb-3">
+                <a href="{% url 'ventas:ventas_del_dia' %}?fecha={{ venta.fecha_hora|date:'Y-m-d' }}" class="btn btn-outline-secondary">Volver a las ventas</a>
+                <button type="button" class="btn btn-outline-secondary" onclick="window.print()">Imprimir</button>
+            </div>
+            {% endif %}
+
+            {% if anulable %}
+            <div class="card border-danger-subtle">
+                <div class="card-body">
+                    <h2 class="h6">Anular esta venta</h2>
+                    <p class="small text-secondary mb-2">
+                        Se puede anular hasta las {{ venta.id_almacen.hora_limite_anulacion|time:"H:i" }} del día de la venta.
+                        Los productos vuelven al stock y queda registrado quién anuló y por qué.
+                    </p>
+                    <form method="post" action="{% url 'ventas:anular' venta.id_venta %}" novalidate>
+                        {% csrf_token %}
+                        {% include "_campos_formulario.html" with form=form_anular %}
+                        <button type="submit" class="btn btn-outline-danger">Anular venta</button>
+                    </form>
+                </div>
+            </div>
+            {% elif venta.estado == 'vigente' %}
+            <p class="small text-secondary">El plazo para anular esta venta ya terminó.</p>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -2,6 +2,7 @@ from django.db.models import OuterRef, Subquery
 from django.db.models.functions import TruncTime
 
 from apps.almacenes.models import ZONA_HORARIA_ALMACEN, FranjaHoraria, condicion_franja
+from apps.inventario.models import MotivoAjuste, MovimientoStock, TipoMovimiento
 
 
 def hora_local(campo):
@@ -21,4 +22,17 @@ def anotar_franja(ventas, almacen):
     return ventas.annotate(
         franja=Subquery(franjas.values("nombre")[:1]),
         franja_orden=Subquery(franjas.values("orden")[:1]),
+    )
+
+
+def ajustes_de_exactitud(almacen):
+    """
+    Ajustes que cuentan para el indicador «exactitud de inventario» (§7): todos los
+    movimientos tipo ajuste EXCEPTO los de «Alta rápida en caja», porque un producto
+    que nace en el mesón no es una diferencia de inventario.
+    """
+    return (
+        MovimientoStock.objects.del_almacen(almacen)
+        .filter(tipo=TipoMovimiento.AJUSTE)
+        .exclude(motivo=MotivoAjuste.ALTA_RAPIDA)
     )

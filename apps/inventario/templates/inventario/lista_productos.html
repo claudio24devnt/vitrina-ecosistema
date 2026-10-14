@@ -61,7 +61,10 @@
                 <td class="text-end d-none d-sm-table-cell">{{ producto.stock_minimo }}</td>
                 {% if user.es_admin %}
                 <td class="text-end">
-                    <a href="{% url 'inventario:editar_producto' producto.id_producto %}" class="btn btn-sm btn-outline-secondary">Editar</a>
+                    <div class="btn-group btn-group-sm">
+                        <a href="{% url 'inventario:editar_producto' producto.id_producto %}" class="btn btn-outline-secondary">Editar</a>
+                        <a href="{% url 'inventario:ajustar' producto.id_producto %}" class="btn btn-outline-secondary">Ajustar</a>
+                    </div>
                 </td>
                 {% endif %}
             </tr>

@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+
+{% block titulo %}Ajustar inventario — TivoScanea{% endblock %}
+
+{% block contenido %}
+<div class="row justify-content-center">
+    <div class="col-lg-6">
+        <h1 class="h3 mb-1">Ajustar inventario</h1>
+        <p class="text-secondary mb-3">{{ producto.nombre }} · {{ producto.codigo_barras }}</p>
+        <div class="card shadow-sm">
+            <div class="card-body">
+                <p class="fs-5">El sistema tiene <strong>{{ producto.stock_actual }}</strong> unidades.</p>
+                <form method="post" novalidate>
+                    {% csrf_token %}
+                    {% include "_campos_formulario.html" %}
+                    <div class="d-flex gap-2">
+                        <button type="submit" class="btn btn-success btn-lg">Registrar ajuste</button>
+                        <a href="{% url 'inventario:lista_productos' %}" class="btn btn-outline-secondary btn-lg">Cancelar</a>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
