@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+
+{% block titulo %}Venta #{{ venta.id_venta }} — TivoScanea{% endblock %}
+
+{% block contenido %}
+<div class="encabezado-seccion">
+    <h1>Venta #{{ venta.id_venta }}</h1>
+    <a href="{% url 'ventas:lista_ventas' %}?fecha={{ venta.fecha_hora|date:'Y-m-d' }}" class="boton boton-secundario">Volver</a>
+</div>
+
+<div class="tarjeta">
+    <p>Fecha: {{ venta.fecha_hora|date:"d/m/Y H:i" }}</p>
+    <p>Vendedor: {{ venta.id_usuario.nombre }}</p>
+    <p>Medio de pago: {{ venta.get_medio_pago_display }}</p>
+    <p>Estado: <strong>{{ venta.get_estado_display }}</strong></p>
+</div>
+
+<table>
+    <thead>
+        <tr><th>Producto</th><th>Precio unitario</th><th>Cantidad</th><th>Subtotal</th></tr>
+    </thead>
+    <tbody>
+        {% for detalle in detalles %}
+        <tr>
+            <td data-etiqueta="Producto">{{ detalle.id_producto.nombre }}</td>
+            <td data-etiqueta="Precio unitario">${{ detalle.precio_unitario|floatformat:"0g" }}</td>
+            <td data-etiqueta="Cantidad">{{ detalle.cantidad }}</td>
+            <td data-etiqueta="Subtotal">${{ detalle.subtotal|floatformat:"0g" }}</td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+
+<p class="total-venta">Total: <strong>${{ venta.total|floatformat:"0g" }}</strong></p>
+
+{% if anulable and user.es_admin %}
+    <form method="post" action="{% url 'ventas:anular' venta.id_venta %}"
+          onsubmit="return confirm('¿Anular la venta #{{ venta.id_venta }}? Se repondrá el stock.');">
+        {% csrf_token %}
+        <button type="submit" class="boton boton-peligro">Anular venta</button>
+    </form>
+{% elif venta.estado == 'vigente' and user.es_admin %}
+    <p class="mensaje mensaje-warning">El plazo para anular esta venta ya venció.</p>
+{% endif %}
+{% endblock %}

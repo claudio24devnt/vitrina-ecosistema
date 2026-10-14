@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+
+{% block titulo %}Ingresar — TivoScanea{% endblock %}
+
+{% block contenido %}
+<div class="tarjeta form-login">
+    <h1>TivoScanea</h1>
+    <p>Ingresá con tu email y contraseña.</p>
+
+    {% if form.errors %}
+        <p class="mensaje mensaje-error">Email o contraseña incorrectos.</p>
+    {% endif %}
+
+    <form method="post">
+        {% csrf_token %}
+        <div class="campo">
+            <label for="id_username">Email</label>
+            {{ form.username }}
+        </div>
+        <div class="campo">
+            <label for="id_password">Contraseña</label>
+            {{ form.password }}
+        </div>
+        <input type="hidden" name="next" value="{{ next }}">
+        <button type="submit" class="boton">Ingresar</button>
+    </form>
+</div>
+{% endblock %}

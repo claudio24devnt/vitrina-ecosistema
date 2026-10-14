@@ -1,0 +1,65 @@
+{% extends "base.html" %}
+
+{% block titulo %}Productos — TivoScanea{% endblock %}
+
+{% block contenido %}
+<div class="encabezado-seccion">
+    <h1>Productos</h1>
+    <div class="fila-acciones">
+        <a href="{% url 'inventario:escaneo' %}" class="boton">Escanear producto</a>
+        <a href="{% url 'inventario:crear_producto' %}" class="boton boton-secundario">Alta manual</a>
+    </div>
+</div>
+
+{% if total_stock_bajo > 0 %}
+    <div class="mensaje mensaje-warning">
+        ⚠ Hay {{ total_stock_bajo }} producto{{ total_stock_bajo|pluralize }} con stock bajo el mínimo.
+    </div>
+{% endif %}
+
+<form method="get" class="buscador">
+    <input type="text" name="q" value="{{ query }}" placeholder="Buscar por nombre o código de barras">
+    <button type="submit" class="boton boton-secundario">Buscar</button>
+</form>
+
+<table>
+    <thead>
+        <tr>
+            <th>Código</th>
+            <th>Nombre</th>
+            <th>Categoría</th>
+            <th>Precio</th>
+            <th>Stock</th>
+            <th>Mínimo</th>
+            <th>Acciones</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for producto in productos %}
+        <tr class="{% if producto.stock_bajo %}stock-bajo{% endif %}">
+            <td data-etiqueta="Código">{{ producto.codigo_barras }}</td>
+            <td data-etiqueta="Nombre">
+                {{ producto.nombre }}
+                {% if producto.stock_bajo %}<div class="etiqueta-stock-bajo">STOCK BAJO</div>{% endif %}
+            </td>
+            <td data-etiqueta="Categoría">{{ producto.id_categoria.nombre }}</td>
+            <td data-etiqueta="Precio">${{ producto.precio }}</td>
+            <td data-etiqueta="Stock">{{ producto.stock_actual }}</td>
+            <td data-etiqueta="Mínimo">{{ producto.stock_minimo }}</td>
+            <td data-etiqueta="Acciones">
+                <div class="fila-acciones">
+                    <a href="{% url 'inventario:editar_producto' producto.id_producto %}" class="boton boton-secundario">Editar</a>
+                    <form method="post" action="{% url 'inventario:eliminar_producto' producto.id_producto %}"
+                          onsubmit="return confirm('¿Eliminar {{ producto.nombre|escapejs }}?');">
+                        {% csrf_token %}
+                        <button type="submit" class="boton boton-peligro">Eliminar</button>
+                    </form>
+                </div>
+            </td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="7">No hay productos que coincidan con la búsqueda.</td></tr>
+        {% endfor %}
+    </tbody>
+</table>
+{% endblock %}

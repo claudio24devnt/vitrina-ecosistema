@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="es-CL">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block titulo %}TivoScanea{% endblock %}</title>
+    <link rel="stylesheet" href="/static/css/estilos.css">
+</head>
+<body>
+    {% if user.is_authenticated %}
+    <header class="barra-superior">
+        <div class="marca">TivoScanea</div>
+        <nav class="menu">
+            <a href="{% url 'ventas:punto_venta' %}">Vender</a>
+            <a href="{% url 'ventas:lista_ventas' %}">Ventas</a>
+            <a href="{% url 'inventario:lista_productos' %}">Productos</a>
+            <a href="{% url 'inventario:escaneo' %}">Escanear</a>
+            <a href="{% url 'inventario:lista_categorias' %}">Categorías</a>
+        </nav>
+        <div class="usuario-actual">
+            <span>{{ user.nombre }} ({{ user.get_rol_display }})</span>
+            <form action="{% url 'usuarios:logout' %}" method="post">
+                {% csrf_token %}
+                <button type="submit" class="enlace-boton">Salir</button>
+            </form>
+        </div>
+    </header>
+    {% endif %}
+
+    <main class="contenido">
+        {% if messages %}
+            <ul class="mensajes">
+                {% for message in messages %}
+                    <li class="mensaje mensaje-{{ message.tags }}">{{ message }}</li>
+                {% endfor %}
+            </ul>
+        {% endif %}
+        {% block contenido %}{% endblock %}
+    </main>
+</body>
+</html>

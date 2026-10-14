@@ -1,0 +1,29 @@
+# Entorno virtual
+.venv/
+venv/
+
+# Variables de entorno (contiene secretos)
+.env
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+
+# Base de datos local (si se usa sqlite en algun momento)
+db.sqlite3
+
+# Django
+staticfiles/
+media/
+
+# Tests / cobertura
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Editor / OS
+.vscode/
+.idea/
+Thumbs.db
+.DS_Store

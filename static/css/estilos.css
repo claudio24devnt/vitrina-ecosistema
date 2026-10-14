@@ -1,0 +1,318 @@
+:root {
+    --color-primario: #1d6f42;
+    --color-primario-oscuro: #145a34;
+    --color-fondo: #f4f6f5;
+    --color-tarjeta: #ffffff;
+    --color-texto: #1f2a24;
+    --color-borde: #d8ded9;
+    --color-alerta: #b3261e;
+    --color-alerta-fondo: #fbe9e7;
+    --color-exito: #1d6f42;
+    --radio: 8px;
+}
+
+* {
+    box-sizing: border-box;
+}
+
+body {
+    margin: 0;
+    font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    background: var(--color-fondo);
+    color: var(--color-texto);
+}
+
+a {
+    color: var(--color-primario);
+}
+
+.barra-superior {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: 0.75rem 1.5rem;
+    background: var(--color-primario);
+    color: white;
+}
+
+.barra-superior a {
+    color: white;
+    text-decoration: none;
+    font-weight: 600;
+}
+
+.barra-superior a:hover {
+    text-decoration: underline;
+}
+
+.marca {
+    font-size: 1.25rem;
+    font-weight: 700;
+}
+
+.menu {
+    display: flex;
+    gap: 1.25rem;
+    flex-wrap: wrap;
+}
+
+.usuario-actual {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    font-size: 0.9rem;
+}
+
+.enlace-boton {
+    background: none;
+    border: none;
+    color: white;
+    text-decoration: underline;
+    cursor: pointer;
+    font: inherit;
+    padding: 0;
+}
+
+.contenido {
+    max-width: 1100px;
+    margin: 0 auto;
+    padding: 1.5rem;
+}
+
+.mensajes {
+    list-style: none;
+    padding: 0;
+    margin: 0 0 1rem;
+}
+
+.mensaje {
+    padding: 0.75rem 1rem;
+    border-radius: var(--radio);
+    margin-bottom: 0.5rem;
+}
+
+.mensaje-success {
+    background: #e2f3e8;
+    color: var(--color-exito);
+}
+
+.mensaje-error {
+    background: var(--color-alerta-fondo);
+    color: var(--color-alerta);
+}
+
+.mensaje-warning {
+    background: #fff3cd;
+    color: #7a5b00;
+}
+
+.tarjeta {
+    background: var(--color-tarjeta);
+    border: 1px solid var(--color-borde);
+    border-radius: var(--radio);
+    padding: 1.25rem;
+    margin-bottom: 1.25rem;
+}
+
+.form-login {
+    max-width: 360px;
+    margin: 4rem auto;
+}
+
+.campo {
+    margin-bottom: 1rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+}
+
+.campo label {
+    font-weight: 600;
+    font-size: 0.9rem;
+}
+
+input, select, button {
+    font: inherit;
+}
+
+input[type="text"], input[type="number"], input[type="password"],
+input[type="email"], select {
+    padding: 0.6rem 0.7rem;
+    border: 1px solid var(--color-borde);
+    border-radius: var(--radio);
+    width: 100%;
+}
+
+input[type="text"]:focus, input[type="number"]:focus, select:focus {
+    outline: 2px solid var(--color-primario);
+    outline-offset: 1px;
+}
+
+.boton {
+    display: inline-block;
+    background: var(--color-primario);
+    color: white;
+    border: none;
+    padding: 0.65rem 1.25rem;
+    border-radius: var(--radio);
+    cursor: pointer;
+    font-weight: 600;
+    text-decoration: none;
+}
+
+.boton:hover {
+    background: var(--color-primario-oscuro);
+}
+
+.boton-secundario {
+    background: white;
+    color: var(--color-primario);
+    border: 1px solid var(--color-primario);
+}
+
+.boton-peligro {
+    background: var(--color-alerta);
+}
+
+.fila-acciones {
+    display: flex;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+}
+
+table {
+    width: 100%;
+    border-collapse: collapse;
+    background: var(--color-tarjeta);
+    border-radius: var(--radio);
+    overflow: hidden;
+}
+
+th, td {
+    padding: 0.7rem 0.8rem;
+    text-align: left;
+    border-bottom: 1px solid var(--color-borde);
+    font-size: 0.92rem;
+}
+
+th {
+    background: #eef3f0;
+}
+
+tr.stock-bajo {
+    background: var(--color-alerta-fondo);
+}
+
+.etiqueta-stock-bajo {
+    color: var(--color-alerta);
+    font-weight: 700;
+    font-size: 0.8rem;
+}
+
+.buscador {
+    display: flex;
+    gap: 0.6rem;
+    margin-bottom: 1rem;
+    flex-wrap: wrap;
+}
+
+.buscador input[type="text"] {
+    flex: 1;
+    min-width: 200px;
+}
+
+.escaneo-input {
+    font-size: 1.4rem;
+    padding: 1rem;
+    text-align: center;
+    letter-spacing: 0.05em;
+}
+
+.resultado-escaneo {
+    margin-top: 1.25rem;
+}
+
+.encabezado-seccion {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+    margin-bottom: 1rem;
+}
+
+@media (max-width: 640px) {
+    .barra-superior {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+
+    table, thead, tbody, th, td, tr {
+        display: block;
+    }
+
+    thead {
+        display: none;
+    }
+
+    tr {
+        margin-bottom: 0.75rem;
+        border: 1px solid var(--color-borde);
+        border-radius: var(--radio);
+    }
+
+    td {
+        border-bottom: none;
+        padding-left: 45%;
+        position: relative;
+    }
+
+    td::before {
+        content: attr(data-etiqueta);
+        position: absolute;
+        left: 0.8rem;
+        font-weight: 600;
+        color: #55655c;
+    }
+}
+
+input.input-cantidad {
+    width: 5.5rem;
+}
+
+.total-venta {
+    font-size: 1.5rem;
+    text-align: right;
+    margin: 1rem 0;
+}
+
+.resumen-dia {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+    gap: 0.75rem;
+    margin-bottom: 1rem;
+}
+
+.resumen-dia .tarjeta {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+    margin: 0;
+}
+
+.resumen-dia strong {
+    font-size: 1.6rem;
+}
+
+tr.venta-anulada td {
+    color: #7a837d;
+    text-decoration: line-through;
+}
+
+input[type="date"] {
+    padding: 0.6rem;
+    border: 1px solid var(--color-borde);
+    border-radius: var(--radio);
+}

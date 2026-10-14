@@ -1,0 +1,44 @@
+{% extends "base.html" %}
+
+{% block titulo %}Categorías — TivoScanea{% endblock %}
+
+{% block contenido %}
+<h1>Categorías</h1>
+
+<div class="tarjeta">
+    <h2>Nueva categoría</h2>
+    <form method="post">
+        {% csrf_token %}
+        <div class="campo">
+            <label for="{{ form.nombre.id_for_label }}">Nombre</label>
+            {{ form.nombre }}
+            {% if form.nombre.errors %}
+                <span class="mensaje mensaje-error">{{ form.nombre.errors|striptags }}</span>
+            {% endif %}
+        </div>
+        <button type="submit" class="boton">Agregar</button>
+    </form>
+</div>
+
+<table>
+    <thead>
+        <tr><th>Nombre</th><th>Acciones</th></tr>
+    </thead>
+    <tbody>
+        {% for categoria in categorias %}
+        <tr>
+            <td data-etiqueta="Nombre">{{ categoria.nombre }}</td>
+            <td data-etiqueta="Acciones">
+                <form method="post" action="{% url 'inventario:eliminar_categoria' categoria.id_categoria %}"
+                      onsubmit="return confirm('¿Eliminar {{ categoria.nombre|escapejs }}?');">
+                    {% csrf_token %}
+                    <button type="submit" class="boton boton-peligro">Eliminar</button>
+                </form>
+            </td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="2">No hay categorías todavía.</td></tr>
+        {% endfor %}
+    </tbody>
+</table>
+{% endblock %}

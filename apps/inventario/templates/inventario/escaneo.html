@@ -1,0 +1,48 @@
+{% extends "base.html" %}
+
+{% block titulo %}Escanear producto — TivoScanea{% endblock %}
+
+{% block contenido %}
+<div class="tarjeta">
+    <h1>Escanear producto</h1>
+    <p>Apuntá el lector al código de barras, o escribilo a mano y presioná Enter.</p>
+
+    <div class="campo">
+        <label for="input-codigo">Código de barras</label>
+        <input type="text" id="input-codigo" class="escaneo-input" autocomplete="off" autofocus>
+    </div>
+
+    <div id="resultado" class="resultado-escaneo"
+         data-url-buscar="{% url 'inventario:buscar_por_codigo' %}"
+         data-url-crear="{% url 'inventario:crear_producto' %}"
+         data-url-sumar-stock-base="{% url 'inventario:sumar_stock' 0 %}"></div>
+</div>
+
+<template id="plantilla-existente">
+    <div class="tarjeta">
+        <h2 data-campo="nombre"></h2>
+        <p>Categoría: <span data-campo="categoria"></span> — Precio: $<span data-campo="precio"></span></p>
+        <p>Stock actual: <strong data-campo="stock_actual"></strong> (mínimo: <span data-campo="stock_minimo"></span>)</p>
+        <p data-campo="aviso_stock_bajo" class="mensaje mensaje-warning" hidden>Este producto tiene stock bajo.</p>
+
+        <form method="post" data-form-sumar-stock>
+            {% csrf_token %}
+            <input type="hidden" name="volver_a" value="{% url 'inventario:escaneo' %}">
+            <div class="campo">
+                <label for="cantidad-sumar">Cantidad a agregar al stock</label>
+                <input type="number" id="cantidad-sumar" name="cantidad" min="1" value="1" required>
+            </div>
+            <button type="submit" class="boton">Agregar stock</button>
+        </form>
+    </div>
+</template>
+
+<template id="plantilla-no-existe">
+    <div class="tarjeta">
+        <p>No hay ningún producto con el código <strong data-campo="codigo"></strong>.</p>
+        <a class="boton" data-campo="enlace-nuevo">Dar de alta este producto</a>
+    </div>
+</template>
+
+<script src="/static/js/escaneo.js"></script>
+{% endblock %}

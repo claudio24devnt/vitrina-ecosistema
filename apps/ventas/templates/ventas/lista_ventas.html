@@ -1,0 +1,54 @@
+{% extends "base.html" %}
+
+{% block titulo %}Ventas — TivoScanea{% endblock %}
+
+{% block contenido %}
+<div class="encabezado-seccion">
+    <h1>Ventas del {{ fecha|date:"d/m/Y" }}</h1>
+    <a href="{% url 'ventas:punto_venta' %}" class="boton">Nueva venta</a>
+</div>
+
+<form method="get" class="buscador">
+    <input type="date" name="fecha" value="{{ fecha|date:'Y-m-d' }}">
+    <button type="submit" class="boton boton-secundario">Ver día</button>
+</form>
+
+<div class="resumen-dia">
+    <div class="tarjeta"><span>Ventas</span><strong>{{ resumen.cantidad }}</strong></div>
+    <div class="tarjeta"><span>Total vendido</span><strong>${{ resumen.monto|default:0|floatformat:"0g" }}</strong></div>
+    <div class="tarjeta"><span>Anuladas</span><strong>{{ resumen.anuladas }}</strong></div>
+</div>
+
+<table>
+    <thead>
+        <tr>
+            <th>N°</th>
+            <th>Hora</th>
+            <th>Vendedor</th>
+            <th>Unidades</th>
+            <th>Medio de pago</th>
+            <th>Total</th>
+            <th>Estado</th>
+            <th></th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for venta in ventas %}
+        <tr class="{% if venta.estado == 'anulada' %}venta-anulada{% endif %}">
+            <td data-etiqueta="N°">{{ venta.id_venta }}</td>
+            <td data-etiqueta="Hora">{{ venta.fecha_hora|time:"H:i" }}</td>
+            <td data-etiqueta="Vendedor">{{ venta.id_usuario.nombre }}</td>
+            <td data-etiqueta="Unidades">{{ venta.total_items|default:0 }}</td>
+            <td data-etiqueta="Medio de pago">{{ venta.get_medio_pago_display }}</td>
+            <td data-etiqueta="Total">${{ venta.total|floatformat:"0g" }}</td>
+            <td data-etiqueta="Estado">{{ venta.get_estado_display }}</td>
+            <td data-etiqueta="">
+                <a href="{% url 'ventas:detalle_venta' venta.id_venta %}" class="boton boton-secundario">Ver</a>
+            </td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="8">No hay ventas registradas este día.</td></tr>
+        {% endfor %}
+    </tbody>
+</table>
+{% endblock %}
