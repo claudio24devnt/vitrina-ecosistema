@@ -42,6 +42,7 @@ COLUMNAS = {
         "stock_actual": ("integer", False),
         "stock_minimo": ("integer", False),
         "fecha_creacion": ("timestamp with time zone", False),
+        "id_usuario_creacion": ("bigint", True),
     },
     "venta": {
         "id_venta": ("bigint", False),
@@ -70,8 +71,10 @@ COLUMNAS = {
         "id_almacen": ("bigint", False),
         "id_producto": ("bigint", False),
         "id_venta": ("bigint", True),
+        "id_usuario": ("bigint", False),
         "tipo": ("character varying(10)", False),
         "cantidad": ("integer", False),
+        "motivo": ("character varying(40)", True),
         "fecha_hora": ("timestamp with time zone", False),
     },
     "acceso_reporte": {
@@ -103,6 +106,8 @@ RESTRICCIONES = {
     "ck_venta_anulacion_posterior",
     "ck_detalle_venta_cantidad",
     "ck_movimiento_stock_tipo",
+    "ck_movimiento_stock_cantidad",
+    "ck_movimiento_stock_motivo",
     "uq_franja_almacen_nombre",
     "uq_franja_almacen_orden",
 }

@@ -3,6 +3,7 @@
 from decimal import Decimal
 
 import pytest
+from conftest import usuario_de
 
 from apps.almacenes.errores import ReglaDeNegocioError
 from apps.inventario import servicios
@@ -20,6 +21,7 @@ from apps.inventario.servicios import (
 def _registrar(almacen, **cambios):
     datos = {
         "almacen": almacen,
+        "usuario": cambios.pop("usuario", None) or usuario_de(almacen),
         "codigo_barras": "7801234567890",
         "nombre": "Galletas Ficticias",
         "precio": Decimal("890"),
@@ -86,7 +88,12 @@ class TestRegistrarProducto:
 @pytest.mark.django_db
 class TestEntradaDeStock:
     def test_suma_stock_y_deja_movimiento(self, datos_a):
-        registrar_entrada_stock(almacen=datos_a.almacen, producto=datos_a.producto, cantidad=5)
+        registrar_entrada_stock(
+            almacen=datos_a.almacen,
+            producto=datos_a.producto,
+            cantidad=5,
+            usuario=datos_a.admin,
+        )
         datos_a.producto.refresh_from_db()
         assert datos_a.producto.stock_actual == 15
         entrada = _movimientos(datos_a.producto).get(tipo=TipoMovimiento.ENTRADA)
@@ -97,13 +104,19 @@ class TestEntradaDeStock:
     def test_cantidad_invalida_es_rechazada(self, datos_a, cantidad):
         with pytest.raises(ReglaDeNegocioError):
             registrar_entrada_stock(
-                almacen=datos_a.almacen, producto=datos_a.producto, cantidad=cantidad
+                almacen=datos_a.almacen,
+                producto=datos_a.producto,
+                cantidad=cantidad,
+                usuario=datos_a.admin,
             )
 
     def test_producto_de_otro_almacen_es_rechazado(self, datos_a, datos_b):
         with pytest.raises(ReglaDeNegocioError):
             registrar_entrada_stock(
-                almacen=datos_a.almacen, producto=datos_b.producto, cantidad=1
+                almacen=datos_a.almacen,
+                producto=datos_b.producto,
+                cantidad=1,
+                usuario=datos_a.admin,
             )
         datos_b.producto.refresh_from_db()
         assert datos_b.producto.stock_actual == 10
@@ -115,7 +128,10 @@ class TestEntradaDeStock:
         monkeypatch.setattr(servicios, "registrar_movimiento", falla)
         with pytest.raises(RuntimeError):
             registrar_entrada_stock(
-                almacen=datos_a.almacen, producto=datos_a.producto, cantidad=5
+                almacen=datos_a.almacen,
+                producto=datos_a.producto,
+                cantidad=5,
+                usuario=datos_a.admin,
             )
         datos_a.producto.refresh_from_db()
         assert datos_a.producto.stock_actual == 10
@@ -130,11 +146,16 @@ class TestCoherenciaDeAlmacen:
                 tipo=TipoMovimiento.SALIDA,
                 cantidad=1,
                 venta=datos_b.venta,
+                usuario=datos_a.admin,
             )
 
     def test_movimiento_toma_el_almacen_del_producto(self, datos_a):
         movimiento = servicios.registrar_movimiento(
-            producto=datos_a.producto, tipo=TipoMovimiento.AJUSTE, cantidad=1
+            producto=datos_a.producto,
+            tipo=TipoMovimiento.AJUSTE,
+            cantidad=1,
+            motivo="Producto dañado",
+            usuario=datos_a.admin,
         )
         assert movimiento.id_almacen_id == datos_a.producto.id_almacen_id
 

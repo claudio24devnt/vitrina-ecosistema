@@ -1,16 +1,22 @@
 """
-Reglas de negocio de Productos e Inventario (CU-01).
+Reglas de negocio de Productos e Inventario (CU-01 y ajustes de inventario).
 
 Única puerta para cambiar `Producto.stock_actual`: toda variación deja su
-MovimientoStock, y todo registro nace en el mismo almacén que el producto
-(o la venta) al que pertenece.
+MovimientoStock con el usuario que la hizo, y todo registro nace en el mismo
+almacén que el producto, la venta y el usuario a los que se refiere.
 """
 
 from django.db import IntegrityError, transaction
 
 from apps.almacenes.errores import ReglaDeNegocioError
 
-from .models import Categoria, MovimientoStock, Producto, TipoMovimiento
+from .models import (
+    MOTIVOS_AJUSTE_MANUAL,
+    Categoria,
+    MovimientoStock,
+    Producto,
+    TipoMovimiento,
+)
 
 
 class CodigoDuplicadoError(ReglaDeNegocioError):
@@ -46,20 +52,85 @@ def buscar_por_codigo(almacen, codigo):
     )
 
 
-def registrar_movimiento(*, producto, tipo, cantidad, venta=None):
+def registrar_movimiento(*, producto, tipo, cantidad, usuario, venta=None, motivo=None):
     """
     Crea el MovimientoStock con el almacén del producto. No toca stock_actual:
     lo llaman los servicios que ya actualizaron el stock dentro de su transacción.
+    El usuario y la venta deben ser del mismo almacén que el producto.
     """
-    _exigir_mismo_almacen(producto.id_almacen_id, venta)
+    _exigir_mismo_almacen(producto.id_almacen_id, venta, usuario)
     return MovimientoStock.objects.del_almacen(producto.id_almacen_id).create(
-        id_producto=producto, id_venta=venta, tipo=tipo, cantidad=cantidad
+        id_producto=producto,
+        id_venta=venta,
+        id_usuario=usuario,
+        tipo=tipo,
+        cantidad=cantidad,
+        motivo=motivo,
     )
 
 
-def registrar_entrada_stock(*, almacen, producto, cantidad):
+def bloquear_productos(almacen, ids):
+    """SELECT ... FOR UPDATE de los productos, en orden de PK para evitar deadlocks."""
+    return {
+        p.pk: p
+        for p in Producto.objects.del_almacen(almacen)
+        .select_for_update()
+        .filter(pk__in=ids)
+        .order_by("pk")
+    }
+
+
+def aplicar_ajuste(*, producto, diferencia, motivo, usuario, venta=None):
+    """
+    Suma (o resta) `diferencia` al stock de un producto YA bloqueado y deja el
+    movimiento de ajuste con su motivo. Debe llamarse dentro de una transacción.
+    Un solo camino para el ajuste manual y para la caja (CU-02 6a y alta rápida).
+    """
+    if diferencia == 0:
+        raise ReglaDeNegocioError("No hay diferencia que ajustar.")
+    if producto.stock_actual + diferencia < 0:
+        raise ReglaDeNegocioError(
+            f"«{producto.nombre}» quedaría con stock negativo. Revisa la cantidad."
+        )
+    producto.stock_actual += diferencia
+    producto.save(update_fields=["stock_actual"])
+    return registrar_movimiento(
+        producto=producto,
+        tipo=TipoMovimiento.AJUSTE,
+        cantidad=diferencia,
+        motivo=motivo,
+        usuario=usuario,
+        venta=venta,
+    )
+
+
+def registrar_ajuste_por_conteo(*, almacen, producto, cantidad_contada, motivo, usuario):
+    """
+    Ajuste de inventario del administrador: el stock pasa a `cantidad_contada` y la
+    diferencia (positiva o negativa) queda como ajuste con motivo. Sólo acepta los
+    motivos manuales: los de la caja no se eligen a mano (indicador de exactitud).
+    """
+    _exigir_mismo_almacen(almacen, producto, usuario)
+    if motivo not in MOTIVOS_AJUSTE_MANUAL:
+        raise ReglaDeNegocioError("Elige un motivo de la lista.")
+    if cantidad_contada is None or cantidad_contada < 0:
+        raise ReglaDeNegocioError("La cantidad contada no puede ser negativa.")
+
+    with transaction.atomic():
+        bloqueado = bloquear_productos(almacen, [producto.pk])[producto.pk]
+        movimiento = aplicar_ajuste(
+            producto=bloqueado,
+            diferencia=cantidad_contada - bloqueado.stock_actual,
+            motivo=motivo,
+            usuario=usuario,
+        )
+    producto.stock_actual = bloqueado.stock_actual
+    return movimiento
+
+
+def registrar_entrada_stock(*, almacen, producto, cantidad, usuario):
     """Suma stock y deja el movimiento de entrada, en una sola transacción."""
-    _exigir_mismo_almacen(almacen, producto)
+    _exigir_mismo_almacen(almacen, producto, usuario)
     if cantidad is None or cantidad <= 0:
         raise ReglaDeNegocioError("La cantidad a sumar debe ser mayor que cero.")
 
@@ -70,7 +141,7 @@ def registrar_entrada_stock(*, almacen, producto, cantidad):
         bloqueado.stock_actual += cantidad
         bloqueado.save(update_fields=["stock_actual"])
         registrar_movimiento(
-            producto=bloqueado, tipo=TipoMovimiento.ENTRADA, cantidad=cantidad
+            producto=bloqueado, tipo=TipoMovimiento.ENTRADA, cantidad=cantidad, usuario=usuario
         )
 
     producto.stock_actual = bloqueado.stock_actual
@@ -78,14 +149,28 @@ def registrar_entrada_stock(*, almacen, producto, cantidad):
 
 
 def registrar_producto(
-    *, almacen, codigo_barras, nombre, precio, categoria=None, stock_minimo=0, stock_inicial=0
+    *,
+    almacen,
+    usuario,
+    codigo_barras,
+    nombre,
+    precio,
+    categoria=None,
+    stock_minimo=0,
+    stock_inicial=0,
 ):
     """
-    CU-01: alta de producto. Si el código ya existe en el almacén lanza
+    CU-01: alta de producto. También la usa la alta rápida de la caja (CU-02 2a), que
+    llega sin categoría ni stock. Si el código ya existe en el almacén lanza
     CodigoDuplicadoError (con el producto existente) en vez de duplicarlo.
     """
     codigo_barras = (codigo_barras or "").strip()
-    _exigir_mismo_almacen(almacen, categoria)
+    nombre = (nombre or "").strip()
+    _exigir_mismo_almacen(almacen, categoria, usuario)
+    if not codigo_barras or not nombre:
+        raise ReglaDeNegocioError("Faltan el código de barras o el nombre.")
+    if precio is None or precio < 0:
+        raise ReglaDeNegocioError("El precio no puede ser negativo.")
     existente = buscar_por_codigo(almacen, codigo_barras)
     if existente:
         raise CodigoDuplicadoError(existente)
@@ -96,15 +181,16 @@ def registrar_producto(
         with transaction.atomic():
             producto = Producto.objects.del_almacen(almacen).create(
                 codigo_barras=codigo_barras,
-                nombre=nombre.strip(),
+                nombre=nombre,
                 precio=precio,
                 id_categoria=categoria,
                 stock_minimo=stock_minimo,
                 stock_actual=0,
+                id_usuario_creacion=usuario,
             )
             if stock_inicial > 0:
                 registrar_entrada_stock(
-                    almacen=almacen, producto=producto, cantidad=stock_inicial
+                    almacen=almacen, producto=producto, cantidad=stock_inicial, usuario=usuario
                 )
     except IntegrityError:
         # Otro usuario registró el mismo código entre la búsqueda y el INSERT.

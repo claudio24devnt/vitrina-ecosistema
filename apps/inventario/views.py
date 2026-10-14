@@ -67,6 +67,7 @@ def nuevo_producto(request):
             try:
                 producto = registrar_producto(
                     almacen=request.almacen,
+                    usuario=request.user,
                     codigo_barras=datos["codigo_barras"],
                     nombre=datos["nombre"],
                     precio=datos["precio"],

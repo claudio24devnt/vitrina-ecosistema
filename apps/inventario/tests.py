@@ -20,9 +20,10 @@ class TestRestriccionesInventario:
             _producto(almacen, stock_actual=-1)
 
     def test_tipo_de_movimiento_invalido(self, datos_a):
-        with pytest.raises(IntegrityError):
+        # Un tipo inválido viola también ck_movimiento_stock_cantidad; PostgreSQL informa una.
+        with pytest.raises(IntegrityError, match="ck_movimiento_stock_(tipo|cantidad)"):
             MovimientoStock.objects.del_almacen(datos_a.almacen).create(
-                id_producto=datos_a.producto, tipo="robo", cantidad=1
+                id_producto=datos_a.producto, id_usuario=datos_a.admin, tipo="robo", cantidad=1
             )
 
     def test_codigo_de_barras_unico_por_almacen(self, datos_a):
