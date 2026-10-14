@@ -64,7 +64,7 @@ almacén piloto en la semana 5).
   ni gráficos en cero.
 - Mes sin mes anterior comparable → omitir la comparación e indicar el motivo.
 
-### 2.4 Bootstrap — decisión pendiente
+### 2.4 Bootstrap — decisión pendiente (Claudio consulta al docente)
 
 El Informe 2 selecciona «HTML, CSS y JavaScript con Bootstrap» (4,80/5 frente
 a React 2,95 y Vue 3,70). El CLAUDE.md anterior decía «sin Bootstrap, es un
@@ -164,6 +164,7 @@ movimiento_stock
       fecha_hora      TIMESTAMPTZ   DEFAULT now()
   CK  tipo IN ('entrada','salida','ajuste')
   IX  ix_mov_prod_fecha (id_producto, fecha_hora)
+★ IX  ix_mov_almacen_fecha (id_almacen, fecha_hora)  -- ajuste de rendimiento
 
 ★ acceso_reporte
   PK  id_acceso       BIGSERIAL
@@ -257,7 +258,9 @@ de salida y comprobante, **todo en una sola transacción**.
   (no PDF). Debe decir en lugar visible **«Comprobante interno de venta — no
   es boleta electrónica»**.
 
-**CU-03 · Anular venta (Administrador).** Venta vigente dentro del plazo →
+**CU-03 · Anular venta (Administrador y Vendedor — decidido 2026-10-14; corrige
+la ficha CU-03 del informe).** El control no es el permiso sino el registro de
+quién, cuándo y por qué. Venta vigente dentro del plazo →
 confirmar → `anulada` + movimientos `entrada` que restituyen stock.
 - **Plazo: hasta las 23:59 del día de la venta, parametrizable por almacén.**
   Motivo: cerrado el día, el reporte ya se consultó y la reposición ya se
@@ -265,8 +268,6 @@ confirmar → `anulada` + movimientos `entrada` que restituyen stock.
 - Registrar siempre **quién anuló y por qué** (motivo obligatorio).
   Implementado: `limite_anulacion()` / `anulacion_en_plazo()` en
   `apps/ventas/servicios.py` (incluye el minuto 23:59 completo).
-- **Pendiente de confirmar:** el brief dice «(Administrador)», pero la
-  respuesta del 2026-10-14 dice que anulan ambos roles.
 - Limitación declarada: un almacén que cierra después de medianoche no queda
   bien modelado (la venta de la 01:30 es del día calendario en que ocurrió).
   Un almacén de Magallanes (sin horario de invierno) queda desfasado 1 h.

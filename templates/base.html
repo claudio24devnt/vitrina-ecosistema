@@ -11,11 +11,7 @@
     <header class="barra-superior">
         <div class="marca">TivoScanea</div>
         <nav class="menu">
-            <a href="{% url 'ventas:punto_venta' %}">Vender</a>
-            <a href="{% url 'ventas:lista_ventas' %}">Ventas</a>
-            <a href="{% url 'inventario:lista_productos' %}">Productos</a>
-            <a href="{% url 'inventario:escaneo' %}">Escanear</a>
-            <a href="{% url 'inventario:lista_categorias' %}">Categorías</a>
+            {# Enlaces de Ventas e Inventario: se reponen en 1.4.2 y 1.4.3. #}
         </nav>
         <div class="usuario-actual">
             <span>{{ user.nombre }} ({{ user.get_rol_display }})</span>

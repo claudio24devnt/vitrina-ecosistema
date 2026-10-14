@@ -115,7 +115,10 @@ class MovimientoStock(ModeloDeAlmacen):
             )
         ]
         indexes = [
-            models.Index(fields=["id_producto", "fecha_hora"], name="ix_mov_prod_fecha")
+            models.Index(fields=["id_producto", "fecha_hora"], name="ix_mov_prod_fecha"),
+            # Ajuste de rendimiento acordado el 2026-10-14 (no está en la Figura 7):
+            # sin él, todo listado de movimientos por almacén recorre la tabla completa.
+            models.Index(fields=["id_almacen", "fecha_hora"], name="ix_mov_almacen_fecha"),
         ]
 
     def __str__(self):

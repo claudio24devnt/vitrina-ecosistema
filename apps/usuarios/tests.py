@@ -75,3 +75,26 @@ class TestRolRequerido:
         request.user = datos_a.vendedor
         with pytest.raises(PermissionDenied):
             rol_requerido(RolUsuario.ADMIN)(self._vista)(request)
+
+
+@pytest.mark.django_db
+class TestPaginasConSesion:
+    def test_layout_con_sesion_iniciada_no_rompe(self, client, datos_a):
+        # base.html no debe enlazar a URLs que no existen (regresión del 1.3.2).
+        client.force_login(datos_a.vendedor)
+        assert client.get("/cuentas/login/").status_code == 200
+
+    def test_admin_lista_las_nueve_tablas_sin_errores(self, client, datos_a):
+        datos_a.admin.is_staff = datos_a.admin.is_superuser = True
+        datos_a.admin.save()
+        client.force_login(datos_a.admin)
+        for ruta in [
+            "almacenes/almacen",
+            "usuarios/usuario",
+            "inventario/categoria",
+            "inventario/producto",
+            "inventario/movimientostock",
+            "ventas/venta",
+            "reporteria/accesoreporte",
+        ]:
+            assert client.get(f"/admin/{ruta}/").status_code == 200, ruta

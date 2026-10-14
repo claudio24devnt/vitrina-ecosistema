@@ -114,6 +114,7 @@ INDICES = {
     "ix_venta_anuladas",
     "ix_detalle_venta",
     "ix_mov_prod_fecha",
+    "ix_mov_almacen_fecha",
     "ix_acceso_almacen_fecha",
     "ix_franja_almacen",
 }
