@@ -37,7 +37,7 @@ jobs:
 
     env:
       # Valores ficticios sólo para CI: no son secretos de ningún entorno real.
-      DJANGO_SECRET_KEY: clave-ficticia-solo-para-ci
+      DJANGO_SECRET_KEY: ci-only-not-a-secret-do-not-reuse
       DJANGO_DEBUG: "False"
       DB_NAME: tivoscanea_db
       DB_USER: tivoscanea_user
