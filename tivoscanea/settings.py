@@ -33,6 +33,7 @@ INSTALLED_APPS = [
     "django.contrib.messages",
     "django.contrib.staticfiles",
     "rest_framework",
+    "apps.almacenes",
     "apps.usuarios",
     "apps.inventario",
     "apps.ventas",
@@ -88,7 +89,8 @@ DATABASES = {
 AUTH_USER_MODEL = "usuarios.Usuario"
 
 LOGIN_URL = "usuarios:login"
-LOGIN_REDIRECT_URL = "inventario:lista_productos"
+# La pantalla de inicio se reconstruye en 1.4.2 sobre el modelo multi-almacén.
+LOGIN_REDIRECT_URL = "/"
 LOGOUT_REDIRECT_URL = "usuarios:login"
 
 
@@ -134,5 +136,4 @@ DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
 # Reglas de negocio configurables (ver Informe 2)
 
-PLAZO_ANULACION_VENTA_MINUTOS = env.int("PLAZO_ANULACION_VENTA_MINUTOS", default=30)
 UMBRAL_CAIDA_VENTAS_PORCENTAJE = env.int("UMBRAL_CAIDA_VENTAS_PORCENTAJE", default=20)

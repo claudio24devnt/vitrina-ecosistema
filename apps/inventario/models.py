@@ -1,46 +1,68 @@
 from django.db import models
+from django.db.models.functions import Now
+from django.utils import timezone
+
+from apps.almacenes.aislamiento import ModeloDeAlmacen
 
 
-class Categoria(models.Model):
-    id_categoria = models.AutoField(primary_key=True)
-    nombre = models.CharField(max_length=100, unique=True)
+class Categoria(ModeloDeAlmacen):
+    id_categoria = models.BigAutoField(primary_key=True, db_column="id_categoria")
+    nombre = models.CharField(max_length=80)
 
     class Meta:
+        db_table = "categoria"
+        default_manager_name = "sin_aislamiento"
+        ordering = ["nombre"]
         verbose_name = "categoría"
         verbose_name_plural = "categorías"
-        ordering = ["nombre"]
+        constraints = [
+            models.UniqueConstraint(fields=["id_almacen", "nombre"], name="uq_categoria")
+        ]
 
     def __str__(self):
         return self.nombre
 
 
-class Producto(models.Model):
+class Producto(ModeloDeAlmacen):
     """
-    Sin campo de baja logica: el diccionario de datos define exactamente
-    estos campos. La "baja" de un producto es un delete real, pero
-    Producto esta protegido (on_delete=PROTECT) desde MovimientoStock y
-    DetalleVenta, asi que un producto con historial no se puede eliminar
-    fisicamente (la vista debe capturar ProtectedError y avisar al usuario).
+    Sin baja lógica: el modelo físico no la tiene. Producto está protegido desde
+    MovimientoStock y DetalleVenta, así que uno con historial no se puede borrar.
+    `stock_actual` sólo cambia a través de la capa de servicios, que deja el
+    MovimientoStock correspondiente.
     """
 
-    id_producto = models.AutoField(primary_key=True)
-    codigo_barras = models.CharField(max_length=32, unique=True)
-    nombre = models.CharField(max_length=200)
+    id_producto = models.BigAutoField(primary_key=True, db_column="id_producto")
     id_categoria = models.ForeignKey(
         Categoria,
         on_delete=models.PROTECT,
         db_column="id_categoria",
         related_name="productos",
+        null=True,
+        blank=True,
+        db_index=False,
     )
-    precio = models.DecimalField(max_digits=10, decimal_places=2)
-    stock_actual = models.PositiveIntegerField(default=0)
-    stock_minimo = models.PositiveIntegerField(default=0)
-    fecha_creacion = models.DateTimeField(auto_now_add=True)
+    codigo_barras = models.CharField(max_length=20)
+    nombre = models.CharField(max_length=150)
+    precio = models.DecimalField(max_digits=10, decimal_places=0)
+    stock_actual = models.IntegerField(default=0, db_default=0)
+    stock_minimo = models.IntegerField(default=0, db_default=0)
+    fecha_creacion = models.DateTimeField(default=timezone.now, db_default=Now())
 
     class Meta:
+        db_table = "producto"
+        default_manager_name = "sin_aislamiento"
+        ordering = ["nombre"]
         verbose_name = "producto"
         verbose_name_plural = "productos"
-        ordering = ["nombre"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["id_almacen", "codigo_barras"], name="uq_producto"
+            ),
+            models.CheckConstraint(
+                condition=models.Q(stock_actual__gte=0), name="ck_producto_stock_actual"
+            ),
+        ]
+        indexes = [models.Index(fields=["codigo_barras"], name="ix_producto_codigo")]
 
     def __str__(self):
         return f"{self.nombre} ({self.codigo_barras})"
@@ -56,19 +78,17 @@ class TipoMovimiento(models.TextChoices):
     AJUSTE = "ajuste", "Ajuste"
 
 
-class MovimientoStock(models.Model):
-    """Bitacora de auditoria: toda variacion de Producto.stock_actual genera un registro."""
+class MovimientoStock(ModeloDeAlmacen):
+    """Bitácora: toda variación de Producto.stock_actual genera un registro."""
 
-    id_movimiento = models.AutoField(primary_key=True)
+    id_movimiento = models.BigAutoField(primary_key=True, db_column="id_movimiento")
     id_producto = models.ForeignKey(
         Producto,
         on_delete=models.PROTECT,
         db_column="id_producto",
         related_name="movimientos",
+        db_index=False,
     )
-    tipo = models.CharField(max_length=10, choices=TipoMovimiento.choices)
-    cantidad = models.PositiveIntegerField()
-    fecha_hora = models.DateTimeField(auto_now_add=True)
     id_venta = models.ForeignKey(
         "ventas.Venta",
         on_delete=models.PROTECT,
@@ -76,12 +96,30 @@ class MovimientoStock(models.Model):
         related_name="movimientos_stock",
         null=True,
         blank=True,
+        db_index=False,
     )
+    tipo = models.CharField(max_length=10, choices=TipoMovimiento.choices)
+    cantidad = models.IntegerField()
+    fecha_hora = models.DateTimeField(default=timezone.now, db_default=Now())
 
     class Meta:
+        db_table = "movimiento_stock"
+        default_manager_name = "sin_aislamiento"
+        ordering = ["-fecha_hora"]
         verbose_name = "movimiento de stock"
         verbose_name_plural = "movimientos de stock"
-        ordering = ["-fecha_hora"]
+        constraints = [
+            models.CheckConstraint(
+                condition=models.Q(tipo__in=TipoMovimiento.values),
+                name="ck_movimiento_stock_tipo",
+            )
+        ]
+        indexes = [
+            models.Index(fields=["id_producto", "fecha_hora"], name="ix_mov_prod_fecha"),
+            # Ajuste de rendimiento acordado el 2026-10-14 (no está en la Figura 7):
+            # sin él, todo listado de movimientos por almacén recorre la tabla completa.
+            models.Index(fields=["id_almacen", "fecha_hora"], name="ix_mov_almacen_fecha"),
+        ]
 
     def __str__(self):
-        return f"{self.tipo} x{self.cantidad} - {self.id_producto.nombre}"
+        return f"{self.tipo} x{self.cantidad} - producto #{self.id_producto_id}"

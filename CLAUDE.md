@@ -35,7 +35,7 @@ ante un docente y se pilotea en un almacén real.
 | Lenguaje | Python 3.12 |
 | Framework | **Django 5.2 LTS** (soporte extendido hasta abril 2028) + Django REST Framework |
 | Base de datos | PostgreSQL 16 |
-| Interfaz | Plantillas Django + HTML/CSS/JS — **Bootstrap: PENDIENTE, ver §2.4** |
+| Interfaz | Plantillas Django + HTML/CSS/JS vanilla + **Bootstrap 5** (ver §2.4) |
 | Nube | Azure: App Service (Linux) + Database for PostgreSQL Flexible Server |
 | Pruebas | pytest + pytest-django |
 | Calidad | flake8 + black (line-length 95, ver `pyproject.toml` / `setup.cfg`) |
@@ -64,19 +64,21 @@ almacén piloto en la semana 5).
   ni gráficos en cero.
 - Mes sin mes anterior comparable → omitir la comparación e indicar el motivo.
 
-### 2.4 Bootstrap — decisión pendiente
+### 2.4 Bootstrap 5 — resuelto (2026-10-14)
 
-El Informe 2 selecciona «HTML, CSS y JavaScript con Bootstrap» (4,80/5 frente
-a React 2,95 y Vue 3,70). El CLAUDE.md anterior decía «sin Bootstrap, es un
-requisito del proyecto» y no se sabe de dónde salió esa regla. Claudio lo
-resuelve. **Hasta entonces, no tocar la capa de presentación.**
+Se usa Bootstrap 5, como selecciona el Informe 2 (4,80/5 frente a React 2,95 y
+Vue 3,70). La regla «sin Bootstrap» del CLAUDE.md anterior no venía del
+docente ni de la asignatura: fue una propuesta del asistente y queda
+descartada. Sigue prohibido cualquier framework SPA (React, Vue).
 
 ---
 
 ## 3. Modelo físico de datos
 
 PostgreSQL 16. Toda columna `NOT NULL` salvo las marcadas `NULL`. Es la
-Figura 7 del Informe 2 más tres correcciones (marcadas con ★).
+Figura 7 del Informe 2 más las correcciones acordadas (marcadas con ★).
+**Congelado desde el paquete 1.3.2**: si un servicio necesita algo que el
+modelo no cubre, parar y preguntar.
 
 ```sql
 almacen
@@ -87,6 +89,7 @@ almacen
       plan            VARCHAR(20)
       fecha_alta      TIMESTAMPTZ   DEFAULT now()
       activo          BOOLEAN       DEFAULT true
+★     hora_limite_anulacion TIME    DEFAULT '23:59'  -- plazo de anulación, no horario de cierre
   UQ  uq_almacen_rut (rut)
 
 usuario
@@ -130,8 +133,15 @@ venta
       total           NUMERIC(12,0)
       medio_pago      VARCHAR(20)
       estado          VARCHAR(10)   DEFAULT 'vigente'
+★ FK  id_usuario_anulacion BIGINT NULL -> usuario
+★     motivo_anulacion     VARCHAR(200) NULL
+★     fecha_anulacion      TIMESTAMPTZ  NULL
   CK  estado IN ('vigente','anulada')
+★ CK  ck_venta_anulacion_coherente: anulada <=> los tres campos llenos
+      (motivo con length(trim) >= 5); no anulada <=> los tres NULL
+★ CK  ck_venta_anulacion_posterior: fecha_anulacion >= fecha_hora
   IX  ix_venta_fecha (id_almacen, fecha_hora)
+★ IX  ix_venta_anuladas (id_almacen, fecha_anulacion) WHERE estado = 'anulada'
 
 detalle_venta
   PK  id_detalle      BIGSERIAL
@@ -154,6 +164,7 @@ movimiento_stock
       fecha_hora      TIMESTAMPTZ   DEFAULT now()
   CK  tipo IN ('entrada','salida','ajuste')
   IX  ix_mov_prod_fecha (id_producto, fecha_hora)
+★ IX  ix_mov_almacen_fecha (id_almacen, fecha_hora)  -- ajuste de rendimiento
 
 ★ acceso_reporte
   PK  id_acceso       BIGSERIAL
@@ -162,12 +173,30 @@ movimiento_stock
       mes_consultado  DATE          -- primer día del mes consultado
       fecha_hora      TIMESTAMPTZ   DEFAULT now()
   IX  ix_acceso_almacen_fecha (id_almacen, fecha_hora)
+
+★ franja_horaria
+  PK  id_franja       BIGSERIAL
+  FK  id_almacen      BIGINT -> almacen
+      nombre          VARCHAR(20)
+      orden           SMALLINT
+      hora_inicio     TIME
+      hora_fin        TIME          -- EXCLUSIVA: la franja es [inicio, fin)
+  UQ  uq_franja_almacen_nombre (id_almacen, nombre)
+  UQ  uq_franja_almacen_orden  (id_almacen, orden)
+  IX  ix_franja_almacen        (id_almacen, orden)
 ```
 
-**Pendiente de modelar (definido en §4, sin columna en la Figura 7):** quién
-anuló y motivo obligatorio (CU-03), plazo de anulación y franjas horarias
-parametrizables por almacén (CU-03, CU-04). Proponer el esquema y confirmarlo
-antes de crearlo.
+Nombres de restricciones sin nombre en la Figura 7: `ck_usuario_rol`,
+`ck_producto_stock_actual`, `ck_venta_estado`, `ck_detalle_venta_cantidad`,
+`ck_movimiento_stock_tipo`. `apps/almacenes/test_esquema.py` verifica contra
+PostgreSQL tipos, nulabilidad, restricciones e índices.
+
+**Hora local:** toda comparación de reloj de pared (plazo de anulación,
+franjas) usa `(fecha_hora AT TIME ZONE 'America/Santiago')`, nunca UTC
+(`ZONA_HORARIA_ALMACEN` en `apps/almacenes/models.py`; `TruncTime(...,
+tzinfo=...)` en el ORM). Una franja con `hora_inicio > hora_fin` cruza la
+medianoche: usar `condicion_franja()`, nunca `BETWEEN`.
+
 
 ### Decisiones que se respetan
 
@@ -189,10 +218,18 @@ Las columnas usan `db_column` explícito para respetar los nombres literales
 
 ### Aislamiento multi-tenant — requisito
 
-- Un manager/mixin **obliga** a filtrar por `id_almacen`: una consulta sin ese
-  filtro **falla** en desarrollo, no devuelve datos.
-- Pruebas con dos almacenes que verifican que ninguno puede leer, modificar
-  ni contar datos del otro. Son parte de la definición de terminado.
+- `apps/almacenes/aislamiento.py`: las nueve tablas heredan de
+  `ModeloAislado`/`ModeloDeAlmacen`. **Toda consulta de la aplicación es
+  `Modelo.objects.del_almacen(almacen)...`**; sin eso, `objects` lanza
+  `ConsultaSinAlmacenError` (también `filter(id_almacen=...)` a mano).
+  `create()` sobre una consulta fijada asigna el almacén.
+- `Modelo.sin_aislamiento` es el default manager de Django (admin, login,
+  validación de unicidad, relaciones inversas como `venta.detalles`). En
+  código propio sólo para consultas intencionalmente transversales.
+  Limitación: un `Subquery` construido sin `del_almacen` no se detecta.
+- Pruebas con dos almacenes en `apps/almacenes/test_aislamiento.py`
+  (fixtures `datos_a`/`datos_b` en `conftest.py`). Son parte de la
+  definición de terminado.
 
 ---
 
@@ -221,12 +258,19 @@ de salida y comprobante, **todo en una sola transacción**.
   (no PDF). Debe decir en lugar visible **«Comprobante interno de venta — no
   es boleta electrónica»**.
 
-**CU-03 · Anular venta (Administrador).** Venta vigente dentro del plazo →
+**CU-03 · Anular venta (Administrador y Vendedor — decidido 2026-10-14; corrige
+la ficha CU-03 del informe).** El control no es el permiso sino el registro de
+quién, cuándo y por qué. Venta vigente dentro del plazo →
 confirmar → `anulada` + movimientos `entrada` que restituyen stock.
 - **Plazo: hasta las 23:59 del día de la venta, parametrizable por almacén.**
   Motivo: cerrado el día, el reporte ya se consultó y la reposición ya se
   decidió; anular después cambia el pasado.
 - Registrar siempre **quién anuló y por qué** (motivo obligatorio).
+  Implementado: `limite_anulacion()` / `anulacion_en_plazo()` en
+  `apps/ventas/servicios.py` (incluye el minuto 23:59 completo).
+- Limitación declarada: un almacén que cierra después de medianoche no queda
+  bien modelado (la venta de la 01:30 es del día calendario en que ocurrió).
+  Un almacén de Magallanes (sin horario de invierno) queda desfasado 1 h.
 - 2a: fuera de plazo → rechazar e informar el motivo.
 
 **CU-04 · Reporte mensual (Administrador).** Seleccionar mes → más vendidos,
@@ -361,16 +405,21 @@ años.
 
 ---
 
-## Estado actual del código (a migrar)
+## Estado actual del código
 
-`main` tiene un prototipo previo al brief: apps `usuarios`, `inventario`,
-`ventas` (caja, historial, anulación), `reporteria` (vacía) y el comando
-`cargar_datos_prueba`. **No cumple el modelo de §3** (sin `almacen` ni
-`id_almacen`, montos con 2 decimales, código de barras único global, plazo de
-anulación de 30 min inventado, `services.py` en inglés, seed con marcas
-reales). Se reescribe en los bloques 1.3.2 → 1.4.3. La regla vigente del
-prototipo que se mantiene: **toda variación de `stock_actual` pasa por la
-capa de servicios y genera un `movimiento_stock`**.
+- **1.4.1 (hecho):** Django 5.2 LTS, CI (`verificaciones`: black, flake8,
+  migraciones al día, pytest sobre PostgreSQL 16) y check de despliegue
+  `tivoscanea.E001` que rechaza la SECRET_KEY del CI (`tivoscanea/checks.py`;
+  el pipeline de 1.6 debe correr `check --deploy --fail-level ERROR`).
+- **1.3.2 (hecho):** las nueve tablas, migraciones desde cero, mixin de
+  aislamiento, `crear_almacen()` con las cinco franjas, `anotar_franja()` en
+  `apps/reporteria/servicios.py`.
+- **Sin interfaz:** las vistas, servicios y pruebas del prototipo anterior se
+  sacaron (siguen en el historial de git, commit `a51dd2e`); las plantillas y
+  el JS quedaron sin usar; se rehacen con Bootstrap 5 en 1.4.2 y 1.4.3. `LOGIN_REDIRECT_URL = "/"`
+  no tiene página todavía.
+- Regla que se mantiene: **toda variación de `stock_actual` pasa por la capa
+  de servicios y genera un `movimiento_stock`**.
 
 ## Comandos
 
@@ -378,8 +427,8 @@ capa de servicios y genera un `movimiento_stock`**.
 .\.venv\Scripts\Activate.ps1
 python manage.py runserver
 python -m pytest
-black apps tivoscanea manage.py
-flake8 apps tivoscanea manage.py
+black apps tivoscanea manage.py conftest.py
+flake8 apps tivoscanea manage.py conftest.py
 python manage.py makemigrations && python manage.py migrate
 ```
 
