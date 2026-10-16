@@ -14,6 +14,8 @@
     {% url 'inventario:escanear' as url_escanear %}
     {% url 'inventario:categorias' as url_categorias %}
     {% url 'usuarios:vendedores' as url_vendedores %}
+    {% url 'ventas:caja' as url_caja %}
+    {% url 'ventas:ventas_del_dia' as url_ventas %}
     <nav class="navbar navbar-expand-md navbar-dark bg-success mb-4">
         <div class="container">
             <a class="navbar-brand fw-bold" href="{{ url_inicio }}">TivoScanea</a>
@@ -24,6 +26,14 @@
             </button>
             <div class="collapse navbar-collapse" id="menu-principal">
                 <ul class="navbar-nav me-auto">
+                    <li class="nav-item">
+                        <a class="nav-link fw-semibold {% if request.path == url_caja %}active{% endif %}"
+                           href="{{ url_caja }}">Caja</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link {% if request.path == url_ventas %}active{% endif %}"
+                           href="{{ url_ventas }}">Ventas</a>
+                    </li>
                     {% if user.es_admin %}
                     <li class="nav-item">
                         <a class="nav-link {% if request.path == url_escanear %}active{% endif %}"

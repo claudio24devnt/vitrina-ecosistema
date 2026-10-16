@@ -71,6 +71,7 @@ class EntradaStockAPI(APIView):
                 almacen=request.almacen,
                 producto=producto,
                 cantidad=entrada.validated_data["cantidad"],
+                usuario=request.user,
             )
         except ReglaDeNegocioError as error:
             return Response({"detalle": str(error)}, status=status.HTTP_400_BAD_REQUEST)

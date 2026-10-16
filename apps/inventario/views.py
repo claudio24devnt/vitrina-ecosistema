@@ -9,12 +9,13 @@ from apps.almacenes.errores import ReglaDeNegocioError
 from apps.usuarios.decorators import rol_requerido
 from apps.usuarios.models import RolUsuario
 
-from .forms import CategoriaForm, NuevoProductoForm, ProductoForm
+from .forms import AjusteInventarioForm, CategoriaForm, NuevoProductoForm, ProductoForm
 from .models import Categoria, Producto
 from .servicios import (
     CodigoDuplicadoError,
     actualizar_producto,
     crear_categoria,
+    registrar_ajuste_por_conteo,
     registrar_producto,
 )
 
@@ -67,6 +68,7 @@ def nuevo_producto(request):
             try:
                 producto = registrar_producto(
                     almacen=request.almacen,
+                    usuario=request.user,
                     codigo_barras=datos["codigo_barras"],
                     nombre=datos["nombre"],
                     precio=datos["precio"],
@@ -153,3 +155,30 @@ def categorias(request):
         "inventario/categorias.html",
         {"form": form, "categorias": Categoria.objects.del_almacen(request.almacen)},
     )
+
+
+@solo_admin
+def ajustar_inventario(request, id_producto):
+    """Ajuste por conteo: registra la diferencia (positiva o negativa) con motivo."""
+    producto = get_object_or_404(Producto.objects.del_almacen(request.almacen), pk=id_producto)
+    form = AjusteInventarioForm(request.POST or None)
+    if request.method == "POST" and form.is_valid():
+        try:
+            movimiento = registrar_ajuste_por_conteo(
+                almacen=request.almacen,
+                producto=producto,
+                cantidad_contada=form.cleaned_data["cantidad_contada"],
+                motivo=form.cleaned_data["motivo"],
+                usuario=request.user,
+            )
+        except ReglaDeNegocioError as error:
+            form.add_error(None, str(error))
+        else:
+            signo = "+" if movimiento.cantidad > 0 else ""
+            messages.success(
+                request,
+                f"Inventario de «{producto.nombre}» ajustado ({signo}{movimiento.cantidad}). "
+                f"Stock actual: {producto.stock_actual}.",
+            )
+            return redirect("inventario:lista_productos")
+    return render(request, "inventario/ajustar.html", {"form": form, "producto": producto})

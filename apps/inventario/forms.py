@@ -2,7 +2,7 @@ from django import forms
 
 from apps.almacenes.formularios import FormularioBootstrap
 
-from .models import Categoria
+from .models import MOTIVOS_AJUSTE_MANUAL, Categoria
 
 
 class ProductoForm(FormularioBootstrap):
@@ -46,3 +46,18 @@ class NuevoProductoForm(ProductoForm):
 
 class CategoriaForm(FormularioBootstrap):
     nombre = forms.CharField(label="Nueva categoría", max_length=80)
+
+
+class AjusteInventarioForm(FormularioBootstrap):
+    """Sólo los cuatro motivos manuales: los de la caja no se eligen a mano (§7)."""
+
+    cantidad_contada = forms.IntegerField(
+        label="¿Cuántas unidades hay realmente?",
+        min_value=0,
+        help_text="Cuenta lo que hay en el almacén. El sistema calcula la diferencia.",
+    )
+    motivo = forms.ChoiceField(
+        label="Motivo",
+        choices=[("", "Elige un motivo")]
+        + [(m.value, m.label) for m in MOTIVOS_AJUSTE_MANUAL],
+    )

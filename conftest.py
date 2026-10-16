@@ -65,13 +65,31 @@ def poblar_almacen(sufijo, rut):
         subtotal=Decimal("2000"),
     )
     movimiento = MovimientoStock.objects.del_almacen(almacen).create(
-        id_producto=producto, id_venta=venta, tipo=TipoMovimiento.SALIDA, cantidad=2
+        id_producto=producto,
+        id_venta=venta,
+        id_usuario=vendedor,
+        tipo=TipoMovimiento.SALIDA,
+        cantidad=2,
     )
     acceso = AccesoReporte.objects.del_almacen(almacen).create(
         id_usuario=admin, mes_consultado=date(2026, 9, 1)
     )
     return DatosAlmacen(
         almacen, admin, vendedor, categoria, producto, venta, detalle, movimiento, acceso
+    )
+
+
+def usuario_de(almacen, rol=RolUsuario.ADMIN):
+    """Un usuario ficticio del almacén (lo crea si no existe) para firmar operaciones."""
+    existente = Usuario.objects.del_almacen(almacen).filter(rol=rol).first()
+    if existente:
+        return existente
+    return Usuario.sin_aislamiento.create_user(
+        email=f"{rol}.{almacen.pk}@ficticio.test",
+        nombre=f"Usuario Ficticio {almacen.pk}",
+        password="clave-de-prueba",
+        rol=rol,
+        id_almacen=almacen,
     )
 
 

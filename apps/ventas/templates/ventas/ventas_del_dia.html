@@ -1,0 +1,54 @@
+{% extends "base.html" %}
+{% load formato %}
+
+{% block titulo %}Ventas — TivoScanea{% endblock %}
+
+{% block contenido %}
+<div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
+    <h1 class="h3 m-0">Ventas {% if es_hoy %}de hoy{% else %}del {{ fecha|date:"d/m/Y" }}{% endif %}</h1>
+    <form method="get" class="d-flex gap-2">
+        <input type="date" name="fecha" value="{{ fecha|date:'Y-m-d' }}" class="form-control" aria-label="Fecha">
+        <button type="submit" class="btn btn-outline-secondary">Ver</button>
+    </form>
+</div>
+
+<div class="row g-3 mb-3">
+    <div class="col-4"><div class="card"><div class="card-body">
+        <div class="small text-secondary">Ventas</div><div class="cifra-grande">{{ resumen.cantidad }}</div>
+    </div></div></div>
+    <div class="col-4"><div class="card"><div class="card-body">
+        <div class="small text-secondary">Total vendido</div><div class="cifra-grande">{{ resumen.total|default:0|pesos }}</div>
+    </div></div></div>
+    <div class="col-4"><div class="card"><div class="card-body">
+        <div class="small text-secondary">Anuladas</div><div class="cifra-grande">{{ resumen.anuladas }}</div>
+    </div></div></div>
+</div>
+
+{% if ventas %}
+<div class="table-responsive bg-white rounded shadow-sm">
+    <table class="table table-hover align-middle mb-0">
+        <thead class="table-light">
+            <tr><th>N°</th><th>Hora</th><th class="d-none d-md-table-cell">Atendió</th><th class="text-end">Unidades</th><th class="d-none d-sm-table-cell">Pago</th><th class="text-end">Total</th><th></th></tr>
+        </thead>
+        <tbody>
+            {% for venta in ventas %}
+            <tr class="{% if venta.estado == 'anulada' %}text-decoration-line-through text-secondary{% endif %}">
+                <td>{{ venta.id_venta }}</td>
+                <td>{{ venta.fecha_hora|time:"H:i" }}</td>
+                <td class="d-none d-md-table-cell">{{ venta.id_usuario.nombre }}</td>
+                <td class="text-end">{{ venta.unidades|default:0 }}</td>
+                <td class="d-none d-sm-table-cell">{{ venta.get_medio_pago_display }}</td>
+                <td class="text-end fw-semibold">{{ venta.total|pesos }}</td>
+                <td class="text-end">
+                    {% if venta.estado == 'anulada' %}<span class="badge text-bg-danger me-1">Anulada</span>{% endif %}
+                    <a href="{% url 'ventas:comprobante' venta.id_venta %}" class="btn btn-sm btn-outline-secondary">Ver</a>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% else %}
+<div class="alert alert-light border">No hay ventas registradas {% if es_hoy %}hoy{% else %}ese día{% endif %}.</div>
+{% endif %}
+{% endblock %}

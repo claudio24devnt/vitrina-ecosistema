@@ -78,7 +78,13 @@ descartada. Sigue prohibido cualquier framework SPA (React, Vue).
 PostgreSQL 16. Toda columna `NOT NULL` salvo las marcadas `NULL`. Es la
 Figura 7 del Informe 2 más las correcciones acordadas (marcadas con ★).
 **Congelado desde el paquete 1.3.2**: si un servicio necesita algo que el
-modelo no cubre, parar y preguntar.
+modelo no cubre, parar y preguntar. Cambios aprobados después: 1.4.3 (autor del
+producto y del movimiento, motivo del ajuste; aprobado el 2026-10-14).
+
+Semántica de `movimiento_stock`: `salida` + `id_venta` = venta; `entrada` +
+`id_venta` = restitución por anulación; `ajuste` = diferencia con signo y motivo.
+El formulario de ajuste manual ofrece sólo los cuatro motivos manuales
+(`MOTIVOS_AJUSTE_MANUAL`); los dos de la caja no se eligen a mano.
 
 ```sql
 almacen
@@ -120,6 +126,8 @@ producto
       stock_actual    INTEGER       DEFAULT 0
       stock_minimo    INTEGER       DEFAULT 0
       fecha_creacion  TIMESTAMPTZ   DEFAULT now()
+★ FK  id_usuario_creacion BIGINT NULL -> usuario   -- autor del alta (1.4.3); NULL si
+                                                 -- se creó desde el admin de Django
   UQ  uq_producto (id_almacen, codigo_barras)
   CK  stock_actual >= 0
   IX  ix_producto_codigo (codigo_barras)
@@ -159,10 +167,19 @@ movimiento_stock
 ★ FK  id_almacen      BIGINT -> almacen
   FK  id_producto     BIGINT -> producto
   FK  id_venta        BIGINT NULL -> venta
+★ FK  id_usuario      BIGINT -> usuario   -- NOT NULL: quién hizo el movimiento (1.4.3)
       tipo            VARCHAR(10)
-      cantidad        INTEGER
+      cantidad        INTEGER             -- entrada/salida > 0; sólo el ajuste lleva signo
+★     motivo          VARCHAR(40)  NULL   -- sólo en ajustes
       fecha_hora      TIMESTAMPTZ   DEFAULT now()
   CK  tipo IN ('entrada','salida','ajuste')
+★ CK  ck_movimiento_stock_cantidad (en los dos sentidos):
+        (tipo IN ('entrada','salida') AND cantidad > 0 AND motivo IS NULL)
+     OR (tipo = 'ajuste' AND cantidad <> 0 AND motivo IS NOT NULL)
+★ CK  ck_movimiento_stock_motivo: motivo IS NULL OR motivo IN
+        ('Diferencia de inventario','Producto dañado','Producto vencido',
+         'Corrección administrativa',            -- los cuatro manuales
+         'Venta sin stock registrado','Alta rápida en caja')  -- los genera la caja
   IX  ix_mov_prod_fecha (id_producto, fecha_hora)
 ★ IX  ix_mov_almacen_fecha (id_almacen, fecha_hora)  -- ajuste de rendimiento
 
@@ -243,7 +260,14 @@ con movimiento `entrada`. 2a: el código ya existe → ofrecer sumar stock.
 **CU-02 · Registrar venta (Vendedor) — caso crítico.** Escanear cada producto
 → detalle → total → medio de pago → confirmar → descontar stock, movimientos
 de salida y comprobante, **todo en una sola transacción**.
-- 2a: producto no registrado → darlo de alta **sin abandonar la venta**.
+- 2a: producto no registrado → **alta rápida desde la caja**, también por el
+  vendedor (decidido 2026-10-14): sólo código, nombre y precio; categoría NULL
+  y el administrador la completa después. Se graba el autor
+  (`producto.id_usuario_creacion`). El producto se crea **fuera** de la
+  transacción de la venta: si la venta se abandona, el producto queda con
+  stock 0 y sin movimientos (comportamiento esperado). La venta usa el mismo
+  servicio que 6a con motivo «Alta rápida en caja» y sin mostrar el aviso. No
+  hay pantalla de «productos por revisar»: se consulta por el motivo.
 - 6a: stock insuficiente → advertir y exigir confirmación explícita (no un
   botón que se apriete sin leer). Mensaje: «El sistema tiene 3 unidades y
   estás vendiendo 5. Si continúas, se registra una diferencia de inventario de
@@ -343,7 +367,7 @@ base se muestran como «Por medir en el levantamiento», nunca como cero.
 |---|---|
 | Tiempo de registro de venta | `venta.fecha_hora − venta.hora_inicio` |
 | Quiebres de stock | Serie de `movimiento_stock` por producto (llegada a 0 y reposición) |
-| Exactitud de inventario | Movimientos tipo `ajuste` |
+| Exactitud de inventario | Movimientos tipo `ajuste` **excluyendo motivo «Alta rápida en caja»** (un producto que nace en el mesón no es una diferencia de inventario) |
 | Uso de la reportería | Tabla `acceso_reporte` |
 
 SLA: p95 < 2 s en el punto de venta; respaldo diario con retención de 7 días;
@@ -428,6 +452,19 @@ años.
     CDN): inicio, inventario (vendedor sólo consulta), escanear
     (`static/js/escanear.js`, foco en el campo de escaneo), alta, edición,
     categorías y vendedores. Formularios con `FormularioBootstrap`.
+- **1.4.3 (hecho, en rama):** CU-02, CU-03 y ajuste de inventario.
+  - `apps/ventas/servicios.py`: `registrar_venta` (una transacción; precio del
+    servidor; 6a lanza `StockInsuficienteError` sin escribir nada salvo con
+    `confirmar_diferencias`; alta rápida verificada en el servidor: el producto
+    no tiene movimientos) y `anular_venta` (ambos roles, motivo ≥ 5, plazo).
+  - Un solo camino de ajuste: `aplicar_ajuste` en `apps/inventario/servicios.py`
+    (6a, alta rápida y ajuste por conteo del administrador).
+  - API: `POST /api/ventas/` (201 / 409 con diferencias / 400) y
+    `POST /api/productos/alta-rapida/` (201 / 409 con el existente / 400).
+  - Pantallas: caja (`static/js/caja.js`), ventas del día, comprobante
+    imprimible (`@media print` en `tivoscanea.css`) y ajuste de inventario.
+  - Indicador de exactitud: `ajustes_de_exactitud()` en
+    `apps/reporteria/servicios.py` (excluye la alta rápida).
 - Montos en pantalla con el filtro `pesos` (`{% load formato %}`).
 - Textos en español de Chile con tuteo («Ingresa», «Escribe»), sin voseo.
 - Regla que se mantiene: **toda variación de `stock_actual` pasa por la capa

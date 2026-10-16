@@ -18,3 +18,21 @@
     font-weight: 700;
     line-height: 1;
 }
+
+/* Comprobante: al imprimir sólo sale el comprobante (sirve en impresora térmica). */
+@media print {
+    .navbar,
+    .no-imprimir,
+    .alert-dismissible {
+        display: none !important;
+    }
+
+    body {
+        background: #fff !important;
+    }
+
+    .comprobante {
+        border: 0 !important;
+        box-shadow: none !important;
+    }
+}

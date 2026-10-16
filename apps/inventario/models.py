@@ -1,4 +1,6 @@
+from django.conf import settings
 from django.db import models
+from django.db.models import Q
 from django.db.models.functions import Now
 from django.utils import timezone
 
@@ -47,6 +49,17 @@ class Producto(ModeloDeAlmacen):
     stock_actual = models.IntegerField(default=0, db_default=0)
     stock_minimo = models.IntegerField(default=0, db_default=0)
     fecha_creacion = models.DateTimeField(default=timezone.now, db_default=Now())
+    # Quién dio de alta el producto (1.4.3). NULL en los creados desde el admin de
+    # Django o antes de este cambio: no se inventa un autor (§2.3).
+    id_usuario_creacion = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.PROTECT,
+        db_column="id_usuario_creacion",
+        related_name="productos_creados",
+        null=True,
+        blank=True,
+        db_index=False,
+    )
 
     class Meta:
         db_table = "producto"
@@ -78,8 +91,36 @@ class TipoMovimiento(models.TextChoices):
     AJUSTE = "ajuste", "Ajuste"
 
 
+class MotivoAjuste(models.TextChoices):
+    """
+    Motivos de un movimiento tipo `ajuste`. Lista cerrada (ck_movimiento_stock_motivo):
+    cada motivo nuevo es una migración.
+    """
+
+    DIFERENCIA_INVENTARIO = "Diferencia de inventario", "Diferencia de inventario"
+    PRODUCTO_DANADO = "Producto dañado", "Producto dañado"
+    PRODUCTO_VENCIDO = "Producto vencido", "Producto vencido"
+    CORRECCION_ADMINISTRATIVA = "Corrección administrativa", "Corrección administrativa"
+    # Los dos siguientes los genera la caja; el formulario de ajuste no los ofrece.
+    VENTA_SIN_STOCK = "Venta sin stock registrado", "Venta sin stock registrado"
+    ALTA_RAPIDA = "Alta rápida en caja", "Alta rápida en caja"
+
+
+MOTIVOS_AJUSTE_MANUAL = [
+    MotivoAjuste.DIFERENCIA_INVENTARIO,
+    MotivoAjuste.PRODUCTO_DANADO,
+    MotivoAjuste.PRODUCTO_VENCIDO,
+    MotivoAjuste.CORRECCION_ADMINISTRATIVA,
+]
+
+
 class MovimientoStock(ModeloDeAlmacen):
-    """Bitácora: toda variación de Producto.stock_actual genera un registro."""
+    """
+    Bitácora: toda variación de Producto.stock_actual genera un registro.
+    `entrada` y `salida` llevan cantidad positiva (el tipo es el signo); sólo
+    `ajuste` lleva signo y motivo. Una `salida` con id_venta es una venta; una
+    `entrada` con id_venta es la restitución por anulación.
+    """
 
     id_movimiento = models.BigAutoField(primary_key=True, db_column="id_movimiento")
     id_producto = models.ForeignKey(
@@ -98,8 +139,20 @@ class MovimientoStock(ModeloDeAlmacen):
         blank=True,
         db_index=False,
     )
+    # Quién hizo el movimiento (1.4.3). Obligatorio: sólo la capa de servicios crea
+    # movimientos y siempre sabe quién opera.
+    id_usuario = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.PROTECT,
+        db_column="id_usuario",
+        related_name="movimientos_stock",
+        db_index=False,
+    )
     tipo = models.CharField(max_length=10, choices=TipoMovimiento.choices)
     cantidad = models.IntegerField()
+    motivo = models.CharField(
+        max_length=40, choices=MotivoAjuste.choices, null=True, blank=True
+    )
     fecha_hora = models.DateTimeField(default=timezone.now, db_default=Now())
 
     class Meta:
@@ -112,7 +165,22 @@ class MovimientoStock(ModeloDeAlmacen):
             models.CheckConstraint(
                 condition=models.Q(tipo__in=TipoMovimiento.values),
                 name="ck_movimiento_stock_tipo",
-            )
+            ),
+            # En los dos sentidos: entrada/salida positivas y sin motivo;
+            # ajuste distinto de cero y con motivo.
+            models.CheckConstraint(
+                condition=Q(
+                    tipo__in=[TipoMovimiento.ENTRADA, TipoMovimiento.SALIDA],
+                    cantidad__gt=0,
+                    motivo__isnull=True,
+                )
+                | (Q(tipo=TipoMovimiento.AJUSTE, motivo__isnull=False) & ~Q(cantidad=0)),
+                name="ck_movimiento_stock_cantidad",
+            ),
+            models.CheckConstraint(
+                condition=Q(motivo__isnull=True) | Q(motivo__in=MotivoAjuste.values),
+                name="ck_movimiento_stock_motivo",
+            ),
         ]
         indexes = [
             models.Index(fields=["id_producto", "fecha_hora"], name="ix_mov_prod_fecha"),
