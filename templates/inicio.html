@@ -6,6 +6,21 @@
 <h1 class="h3 mb-1">Hola, {{ user.nombre }}</h1>
 <p class="text-secondary mb-4">{{ request.almacen.razon_social }}</p>
 
+{% for alerta in alertas %}
+<div class="alert {% if alerta.tipo == 'stock_bajo' %}alert-warning{% else %}alert-info{% endif %} d-flex flex-wrap align-items-center gap-2">
+    <span class="me-auto">{{ alerta.mensaje }}</span>
+    {% if alerta.tipo == 'stock_bajo' %}
+    <a href="{% url 'inventario:lista_productos' %}?stock_bajo=1" class="btn btn-sm btn-warning">Ver productos</a>
+    {% else %}
+    <a href="{% url 'reporteria:reporte_mensual' %}?mes={{ alerta.fecha_referencia|date:'Y-m' }}" class="btn btn-sm btn-info">Ver reporte</a>
+    {% endif %}
+    <form action="{% url 'reporteria:marcar_vista' alerta.id_alerta %}" method="post" class="m-0">
+        {% csrf_token %}
+        <button type="submit" class="btn btn-sm btn-outline-secondary">Entendido</button>
+    </form>
+</div>
+{% endfor %}
+
 <div class="row g-3 mb-4">
     <div class="col-12">
         <a href="{% url 'ventas:caja' %}" class="btn btn-success w-100 accion-inicio d-flex align-items-center justify-content-center fs-3">
@@ -24,6 +39,13 @@
             Ver inventario
         </a>
     </div>
+    {% if user.es_admin %}
+    <div class="col-md-6">
+        <a href="{% url 'reporteria:reporte_mensual' %}" class="btn btn-outline-success w-100 accion-inicio d-flex align-items-center justify-content-center">
+            Reporte del mes
+        </a>
+    </div>
+    {% endif %}
 </div>
 
 <div class="row g-3">

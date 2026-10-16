@@ -1,5 +1,5 @@
 """
-Aislamiento multi-almacén sobre las nueve tablas: ningún almacén puede leer,
+Aislamiento multi-almacén sobre las diez tablas: ningún almacén puede leer,
 contar, modificar ni borrar datos de otro, y una consulta sin del_almacen() falla.
 """
 
@@ -11,7 +11,7 @@ from django.db.models import Count
 from apps.almacenes.aislamiento import ConsultaSinAlmacenError
 from apps.almacenes.models import Almacen, FranjaHoraria
 from apps.inventario.models import Categoria, MovimientoStock, Producto
-from apps.reporteria.models import AccesoReporte
+from apps.reporteria.models import AccesoReporte, Alerta
 from apps.usuarios.models import Usuario
 from apps.ventas.models import DetalleVenta, Venta
 
@@ -25,6 +25,7 @@ TABLAS = {
     DetalleVenta: (lambda d: d.detalle, "cantidad", 99),
     MovimientoStock: (lambda d: d.movimiento, "cantidad", 99),
     AccesoReporte: (lambda d: d.acceso, "mes_consultado", date(2026, 1, 1)),
+    Alerta: (lambda d: d.alerta, "mensaje", "Modificada"),
     FranjaHoraria: (
         lambda d: FranjaHoraria.sin_aislamiento.filter(id_almacen=d.almacen).first(),
         "nombre",
@@ -37,7 +38,7 @@ parametrizar_tablas = pytest.mark.parametrize(
 )
 
 
-def test_cubre_las_nueve_tablas():
+def test_cubre_las_diez_tablas():
     assert sorted(m._meta.db_table for m in TABLAS) == sorted(
         [
             "almacen",
@@ -49,6 +50,7 @@ def test_cubre_las_nueve_tablas():
             "movimiento_stock",
             "acceso_reporte",
             "franja_horaria",
+            "alerta",
         ]
     )
 

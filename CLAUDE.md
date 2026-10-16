@@ -79,7 +79,8 @@ PostgreSQL 16. Toda columna `NOT NULL` salvo las marcadas `NULL`. Es la
 Figura 7 del Informe 2 más las correcciones acordadas (marcadas con ★).
 **Congelado desde el paquete 1.3.2**: si un servicio necesita algo que el
 modelo no cubre, parar y preguntar. Cambios aprobados después: 1.4.3 (autor del
-producto y del movimiento, motivo del ajuste; aprobado el 2026-10-14).
+producto y del movimiento, motivo del ajuste; aprobado el 2026-10-14) y 1.4.4
+(tabla `alerta` para CU-05 y el cierre de mes; aprobado el 2026-10-16).
 
 Semántica de `movimiento_stock`: `salida` + `id_venta` = venta; `entrada` +
 `id_venta` = restitución por anulación; `ajuste` = diferencia con signo y motivo.
@@ -201,6 +202,20 @@ movimiento_stock
   UQ  uq_franja_almacen_nombre (id_almacen, nombre)
   UQ  uq_franja_almacen_orden  (id_almacen, orden)
   IX  ix_franja_almacen        (id_almacen, orden)
+
+★ alerta                                  -- 1.4.4: avisos del panel del administrador
+  PK  id_alerta        BIGSERIAL
+  FK  id_almacen       BIGINT -> almacen
+      tipo             VARCHAR(20)
+      fecha_referencia DATE          -- día revisado (stock_bajo) o 1.er día del mes (cierre_mes)
+      mensaje          VARCHAR(200)
+      fecha_hora       TIMESTAMPTZ   DEFAULT now()
+      fecha_vista      TIMESTAMPTZ   NULL
+  FK  id_usuario_vista BIGINT NULL -> usuario
+  CK  ck_alerta_tipo: tipo IN ('stock_bajo','cierre_mes')
+  CK  ck_alerta_vista_coherente: fecha_vista e id_usuario_vista ambos NULL o ambos llenos
+  UQ  uq_alerta (id_almacen, tipo, fecha_referencia)   -- comandos idempotentes
+  IX  ix_alerta_pendientes (id_almacen, fecha_hora) WHERE fecha_vista IS NULL
 ```
 
 Nombres de restricciones sin nombre en la Figura 7: `ck_usuario_rol`,
@@ -235,7 +250,7 @@ Las columnas usan `db_column` explícito para respetar los nombres literales
 
 ### Aislamiento multi-tenant — requisito
 
-- `apps/almacenes/aislamiento.py`: las nueve tablas heredan de
+- `apps/almacenes/aislamiento.py`: las diez tablas heredan de
   `ModeloAislado`/`ModeloDeAlmacen`. **Toda consulta de la aplicación es
   `Modelo.objects.del_almacen(almacen)...`**; sin eso, `objects` lanza
   `ConsultaSinAlmacenError` (también `filter(id_almacen=...)` a mano).
@@ -452,7 +467,7 @@ años.
     CDN): inicio, inventario (vendedor sólo consulta), escanear
     (`static/js/escanear.js`, foco en el campo de escaneo), alta, edición,
     categorías y vendedores. Formularios con `FormularioBootstrap`.
-- **1.4.3 (hecho, en rama):** CU-02, CU-03 y ajuste de inventario.
+- **1.4.3 (hecho, integrado en main):** CU-02, CU-03 y ajuste de inventario.
   - `apps/ventas/servicios.py`: `registrar_venta` (una transacción; precio del
     servidor; 6a lanza `StockInsuficienteError` sin escribir nada salvo con
     `confirmar_diferencias`; alta rápida verificada en el servidor: el producto
@@ -465,6 +480,25 @@ años.
     imprimible (`@media print` en `tivoscanea.css`) y ajuste de inventario.
   - Indicador de exactitud: `ajustes_de_exactitud()` en
     `apps/reporteria/servicios.py` (excluye la alta rápida).
+- **1.4.4 (hecho, en rama `1.4.4-reporteria`):** CU-04 y CU-05.
+  - `apps/reporteria/servicios.py`: `reporte_mensual` (sólo ventas vigentes; mes en
+    hora local; `RANK()` con empates para los más vendidos, top 10;
+    `SUM(...) OVER ()` para participaciones; `LAG()` para la variación mensual) y
+    `consultar_reporte_mensual` (registra `acceso_reporte` y da por visto el aviso
+    de cierre de ese mes). Consultas constantes, no crecen con las ventas.
+  - Día de la semana: promedio por ocurrencias del día en el período (un mes trae 4
+    o 5 de cada uno). Franjas: todas, con su horario.
+  - Comparación (3a): sólo entre meses consecutivos y **completos**. No se compara
+    un mes en curso, un mes sin mes anterior con ventas, ni uno que empezó antes de
+    `inicio_de_registros()` (alta del almacén o primera venta, lo anterior); el
+    motivo se muestra en pantalla.
+  - Umbral de stock bajo: `stock_actual <= stock_minimo`
+    (`productos_con_stock_bajo()` en `apps/inventario/servicios.py`, fuente única).
+  - Comandos `alertar_stock_bajo` y `avisar_cierre_mes` (`--fecha AAAA-MM-DD`),
+    idempotentes, recorren almacenes activos. El panel muestra la revisión de stock
+    más reciente sin ver y los cierres sin ver; «Entendido» las marca vistas.
+  - Pantalla `/reportes/mensual/?mes=AAAA-MM` y `GET /api/reportes/mensual/` (sólo
+    admin). Filtro `porcentaje` en `formato`.
 - Montos en pantalla con el filtro `pesos` (`{% load formato %}`).
 - Textos en español de Chile con tuteo («Ingresa», «Escribe»), sin voseo.
 - Regla que se mantiene: **toda variación de `stock_actual` pasa por la capa

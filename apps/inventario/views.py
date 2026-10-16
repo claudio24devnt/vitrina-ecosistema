@@ -1,6 +1,6 @@
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
-from django.db.models import F, Q
+from django.db.models import Q
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.utils.http import urlencode
@@ -15,6 +15,7 @@ from .servicios import (
     CodigoDuplicadoError,
     actualizar_producto,
     crear_categoria,
+    productos_con_stock_bajo,
     registrar_ajuste_por_conteo,
     registrar_producto,
 )
@@ -27,19 +28,17 @@ def lista_productos(request):
     """Inventario: ambos roles lo consultan; sólo el administrador ve las acciones."""
     busqueda = request.GET.get("q", "").strip()
     solo_stock_bajo = request.GET.get("stock_bajo") == "1"
-    productos = Producto.objects.del_almacen(request.almacen).select_related("id_categoria")
+    if solo_stock_bajo:
+        productos = productos_con_stock_bajo(request.almacen)
+    else:
+        productos = Producto.objects.del_almacen(request.almacen)
+    productos = productos.select_related("id_categoria")
     if busqueda:
         productos = productos.filter(
             Q(nombre__icontains=busqueda) | Q(codigo_barras__icontains=busqueda)
         )
-    if solo_stock_bajo:
-        productos = productos.filter(stock_actual__lte=F("stock_minimo"))
 
-    total_stock_bajo = (
-        Producto.objects.del_almacen(request.almacen)
-        .filter(stock_actual__lte=F("stock_minimo"))
-        .count()
-    )
+    total_stock_bajo = productos_con_stock_bajo(request.almacen).count()
     return render(
         request,
         "inventario/lista_productos.html",

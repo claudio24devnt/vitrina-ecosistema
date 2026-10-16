@@ -1,0 +1,147 @@
+{% extends "base.html" %}
+{% load formato %}
+
+{% block titulo %}Reporte de {{ reporte.nombre }} — TivoScanea{% endblock %}
+
+{% block contenido %}
+<div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
+    <h1 class="h3 m-0">Reporte de {{ reporte.nombre }}</h1>
+    <form method="get" class="d-flex gap-2">
+        <select name="mes" class="form-select" aria-label="Mes">
+            {% for mes, nombre in meses %}
+            <option value="{{ mes|date:'Y-m' }}" {% if mes == reporte.mes %}selected{% endif %}>{{ nombre }}</option>
+            {% endfor %}
+        </select>
+        <button type="submit" class="btn btn-outline-secondary">Ver</button>
+    </form>
+</div>
+
+{% if not reporte.hay_ventas %}
+<div class="alert alert-info">
+    <p class="mb-1 fw-semibold">No hay ventas registradas en {{ reporte.nombre }}.</p>
+    <p class="mb-0">El reporte se arma con las ventas confirmadas en la caja. Cuando las haya, aquí vas a ver los productos más vendidos, los días y los horarios con más movimiento.</p>
+</div>
+{% else %}
+
+{% if reporte.mes_parcial %}
+<div class="alert alert-secondary py-2">
+    Este reporte cubre del {{ reporte.desde|date:"d-m-Y" }} al {{ reporte.ultimo_dia|date:"d-m-Y" }}{% if reporte.en_curso %}: el mes todavía no termina{% else %}: el almacén empezó a registrar en TivoScanea a mitad de mes{% endif %}.
+</div>
+{% endif %}
+
+<div class="row g-3 mb-4">
+    <div class="col-6 col-md-4"><div class="card h-100"><div class="card-body">
+        <div class="small text-secondary">Ventas</div><div class="cifra-grande">{{ reporte.cantidad_ventas }}</div>
+    </div></div></div>
+    <div class="col-6 col-md-4"><div class="card h-100"><div class="card-body">
+        <div class="small text-secondary">Total vendido</div><div class="cifra-grande">{{ reporte.monto_total|pesos }}</div>
+    </div></div></div>
+    <div class="col-12 col-md-4"><div class="card h-100"><div class="card-body">
+        <div class="small text-secondary">Frente al mes anterior</div>
+        {% if reporte.motivo_sin_comparacion %}
+        <p class="mb-0 small">{{ reporte.motivo_sin_comparacion }}</p>
+        {% else %}
+        <div class="cifra-grande {% if reporte.variacion < 0 %}text-danger{% else %}text-success{% endif %}">{{ reporte.variacion|porcentaje:True }}</div>
+        {% endif %}
+    </div></div></div>
+</div>
+
+<section class="mb-4">
+    <h2 class="h5">Productos más vendidos</h2>
+    <div class="table-responsive bg-white rounded shadow-sm">
+        <table class="table align-middle mb-0">
+            <thead class="table-light">
+                <tr><th>Lugar</th><th>Producto</th><th class="text-end">Unidades</th><th class="text-end d-none d-sm-table-cell">Vendido</th><th class="text-end">Del total</th></tr>
+            </thead>
+            <tbody>
+                {% for fila in reporte.mas_vendidos %}
+                <tr>
+                    <td>{{ fila.lugar }}°</td>
+                    <td>{{ fila.nombre }} <span class="text-secondary small d-none d-md-inline">{{ fila.codigo_barras }}</span></td>
+                    <td class="text-end">{{ fila.unidades }}</td>
+                    <td class="text-end d-none d-sm-table-cell">{{ fila.monto|pesos }}</td>
+                    <td class="text-end">{{ fila.participacion|porcentaje }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    <p class="small text-secondary mt-1">«Del total» es la parte de las unidades vendidas en el mes. Si dos productos empatan, comparten el lugar.</p>
+</section>
+
+<div class="row g-4 mb-4">
+    <section class="col-lg-6">
+        <h2 class="h5">Por día de la semana</h2>
+        <div class="table-responsive bg-white rounded shadow-sm">
+            <table class="table align-middle mb-0">
+                <thead class="table-light">
+                    <tr><th>Día</th><th class="text-end">Ventas</th><th class="text-end">Promedio por día</th><th class="w-25 d-none d-sm-table-cell"></th></tr>
+                </thead>
+                <tbody>
+                    {% for fila in reporte.por_dia_semana %}
+                    <tr class="{% if fila.es_mayor %}table-success fw-semibold{% endif %}">
+                        <td>{{ fila.dia }}</td>
+                        <td class="text-end">{{ fila.cantidad }}</td>
+                        <td class="text-end">{% if fila.promedio_diario is not None %}{{ fila.promedio_diario|pesos }}{% else %}—{% endif %}</td>
+                        <td class="d-none d-sm-table-cell">
+                            <div class="progress" role="img" aria-label="{{ fila.participacion|porcentaje }} de lo vendido">
+                                <div class="progress-bar bg-success" style="width: {{ fila.participacion|stringformat:'s' }}%"></div>
+                            </div>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        <p class="small text-secondary mt-1">El promedio divide lo vendido por cuántos lunes, martes, etc. tuvo el período: un mes trae 4 o 5 de cada día.</p>
+    </section>
+
+    <section class="col-lg-6">
+        <h2 class="h5">Por horario</h2>
+        <div class="table-responsive bg-white rounded shadow-sm">
+            <table class="table align-middle mb-0">
+                <thead class="table-light">
+                    <tr><th>Horario</th><th class="text-end">Ventas</th><th class="text-end d-none d-sm-table-cell">Vendido</th><th class="w-25 d-none d-sm-table-cell"></th></tr>
+                </thead>
+                <tbody>
+                    {% for fila in reporte.por_franja %}
+                    <tr class="{% if fila.es_mayor %}table-success fw-semibold{% endif %}">
+                        <td>{{ fila.franja }} <span class="text-secondary small">{{ fila.horario }}</span></td>
+                        <td class="text-end">{{ fila.cantidad }}</td>
+                        <td class="text-end d-none d-sm-table-cell">{{ fila.monto|pesos }}</td>
+                        <td class="d-none d-sm-table-cell">
+                            <div class="progress" role="img" aria-label="{{ fila.participacion|porcentaje }} de las ventas">
+                                <div class="progress-bar bg-success" style="width: {{ fila.participacion|stringformat:'s' }}%"></div>
+                            </div>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </section>
+</div>
+
+<section>
+    <h2 class="h5">Meses anteriores</h2>
+    <div class="table-responsive bg-white rounded shadow-sm">
+        <table class="table align-middle mb-0">
+            <thead class="table-light">
+                <tr><th>Mes</th><th class="text-end">Ventas</th><th class="text-end">Vendido</th><th class="text-end">Cambio</th></tr>
+            </thead>
+            <tbody>
+                {% for fila in reporte.comparacion %}
+                <tr class="{% if fila.consultado %}fw-semibold{% endif %}">
+                    <td>{{ fila.nombre|capfirst }}{% if not fila.completo %} <span class="badge text-bg-light border">incompleto</span>{% endif %}</td>
+                    <td class="text-end">{{ fila.cantidad }}</td>
+                    <td class="text-end">{{ fila.monto|pesos }}</td>
+                    <td class="text-end">{% if fila.variacion is not None %}{{ fila.variacion|porcentaje:True }}{% else %}—{% endif %}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    <p class="small text-secondary mt-1">El cambio se calcula sólo entre dos meses completos seguidos. Un mes en curso o en que el almacén empezó a mitad de mes aparece como incompleto.</p>
+</section>
+{% endif %}
+{% endblock %}

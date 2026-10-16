@@ -5,7 +5,7 @@ Regla: toda consulta de datos del dominio pasa por `Modelo.objects.del_almacen(a
 Una consulta por `objects` que no lo haga **falla** con ConsultaSinAlmacenError en vez de
 devolver datos de todos los almacenes. No se acepta `filter(id_almacen=...)` como
 sustituto: el filtro tiene que quedar marcado para que la regla sea verificable y
-falle siempre del mismo modo, en las nueve tablas.
+falle siempre del mismo modo, en todas las tablas.
 
 Cada modelo tiene además un manager `sin_aislamiento`, que es el *default manager* de
 Django. Lo usa la maquinaria interna (admin, autenticación, validación de unicidad,
@@ -123,7 +123,7 @@ AlmacenManager = models.Manager.from_queryset(AlmacenQuerySet)
 
 class ModeloAislado(models.Model):
     """
-    Base de las nueve tablas. Cada subclase concreta declara en su Meta
+    Base de las tablas del modelo. Cada subclase concreta declara en su Meta
     `default_manager_name = "sin_aislamiento"` (ver docstring del módulo).
     """
 

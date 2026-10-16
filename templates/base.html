@@ -16,6 +16,7 @@
     {% url 'usuarios:vendedores' as url_vendedores %}
     {% url 'ventas:caja' as url_caja %}
     {% url 'ventas:ventas_del_dia' as url_ventas %}
+    {% url 'reporteria:reporte_mensual' as url_reporte %}
     <nav class="navbar navbar-expand-md navbar-dark bg-success mb-4">
         <div class="container">
             <a class="navbar-brand fw-bold" href="{{ url_inicio }}">TivoScanea</a>
@@ -52,6 +53,10 @@
                     <li class="nav-item">
                         <a class="nav-link {% if request.path == url_vendedores %}active{% endif %}"
                            href="{{ url_vendedores }}">Vendedores</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link {% if request.path == url_reporte %}active{% endif %}"
+                           href="{{ url_reporte }}">Reporte</a>
                     </li>
                     {% endif %}
                 </ul>
