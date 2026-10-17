@@ -1,19 +1,24 @@
 """
 Prueba de carga del punto de venta (§6 y §7: p95 < 2 s en la caja).
 
-Simula vendedores que escanean productos y confirman ventas contra un servidor con
-el almacén de demostración (DATOS FICTICIOS, `manage.py cargar_datos_ficticios`).
-Nunca correrla contra un almacén real: registra ventas.
+Simula vendedores que escanean productos y confirman ventas. Registra ventas: nunca
+correrla contra un almacén real. Los códigos son los de los productos FICTICIOS que
+crean `cargar_datos_ficticios` (local) y `preparar_almacen_carga` (Azure).
 
-    pip install -r pruebas_carga/requirements.txt
+En Azure (la medición que vale para el informe), contra un almacén de plan «carga»
+preparado con `manage.py preparar_almacen_carga` (ver su ayuda):
+
+    $env:CARGA_EMAIL = "<vendedor del almacén de carga>"
+    $env:CARGA_CLAVE = Read-Host "Clave del vendedor de carga" -MaskInput
+    locust -f pruebas_carga/locustfile.py --host https://<app>.azurewebsites.net `
+        --headless -u 10 -r 2 -t 3m --csv pruebas_carga/resultado
+
+En local (`runserver` es de un proceso: sirve para probar el escenario, no para medir):
+
     python manage.py cargar_datos_ficticios --limpiar
-    python manage.py runserver --noreload
-    locust -f pruebas_carga/locustfile.py --host http://127.0.0.1:8000 \
-        --headless -u 10 -r 2 -t 2m --csv pruebas_carga/resultado
+    locust -f pruebas_carga/locustfile.py --host http://127.0.0.1:8000 --headless -u 5 -t 1m
 
 Termina con código 1 si el p95 de las operaciones de caja supera los 2 s.
-Ojo: `runserver` es un servidor de desarrollo de un proceso; la medición que vale
-para el informe es contra el App Service (1.6), no contra el portátil.
 """
 
 import os
@@ -24,7 +29,7 @@ from locust import HttpUser, between, events, task
 
 EMAIL = os.environ.get("CARGA_EMAIL", "vendedora@demo.ficticio.test")
 CLAVE = os.environ.get("CARGA_CLAVE", "clave-ficticia-123")
-CODIGOS = [f"20000000{i:05d}" for i in range(24)]  # los del almacén de demostración
+CODIGOS = [f"20000000{i:05d}" for i in range(24)]  # los de los productos ficticios
 P95_MAXIMO_MS = 2000
 OPERACIONES_DE_CAJA = {"escanear", "confirmar venta"}
 
@@ -33,6 +38,9 @@ class Vendedor(HttpUser):
     wait_time = between(1, 4)  # una persona escaneando en el mesón
 
     def on_start(self):
+        # Por HTTPS, Django exige que los POST traigan un Referer del mismo origen
+        # (protección CSRF); un navegador lo manda solo, Locust no.
+        self.client.headers["Referer"] = f"{self.host}/cuentas/login/"
         self.client.get("/cuentas/login/", name="login")
         respuesta = self.client.post(
             "/cuentas/login/",

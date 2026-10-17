@@ -540,6 +540,10 @@ años.
   «12345678-9». El operador vive en un almacén de plan `operacion` (el modelo exige
   `id_almacen`), excluido de la lista; lo crea `manage.py crear_operador`, que pide
   la contraseña. No hay registro autoservicio.
+- **`docs/GUIA_TIVOSCANEA.md`**: guía de la aplicación para Claude Desktop (sin
+  acceso al código). **Al cambiar un comportamiento visible, actualizarla.**
+- Prueba de carga en Azure: `manage.py preparar_almacen_carga` (sólo almacenes de plan
+  `carga`, nunca el piloto) + `pruebas_carga/locustfile.py` con `CARGA_EMAIL/CLAVE`.
 - Montos en pantalla con el filtro `pesos` (`{% load formato %}`).
 - Textos en español de Chile con tuteo («Ingresa», «Escribe»), sin voseo.
 - Regla que se mantiene: **toda variación de `stock_actual` pasa por la capa
