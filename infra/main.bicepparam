@@ -4,7 +4,7 @@ using 'main.bicep'
 
 param prefijo = 'tivoscanea'
 // La región la define el grupo de recursos (az group create -l ...): ver README.
-param repositorio = 'PENDIENTE/vitrina-ecosistema' // PENDIENTE: usuario/repositorio en GitHub
+param repositorio = 'claudio24devnt/vitrina-ecosistema'
 param dominio = readEnvironmentVariable('TIVOSCANEA_DOMINIO', '')
 param enlazarDominio = bool(readEnvironmentVariable('TIVOSCANEA_ENLAZAR_DOMINIO', 'false'))
 param claveBaseDatos = readEnvironmentVariable('TIVOSCANEA_CLAVE_BD')
