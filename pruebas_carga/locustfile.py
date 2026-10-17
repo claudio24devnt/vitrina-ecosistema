@@ -5,7 +5,7 @@ Simula vendedores que escanean productos y confirman ventas contra un servidor c
 el almacén de demostración (DATOS FICTICIOS, `manage.py cargar_datos_ficticios`).
 Nunca correrla contra un almacén real: registra ventas.
 
-    pip install -r requirements-dev.txt
+    pip install -r pruebas_carga/requirements.txt
     python manage.py cargar_datos_ficticios --limpiar
     python manage.py runserver --noreload
     locust -f pruebas_carga/locustfile.py --host http://127.0.0.1:8000 \

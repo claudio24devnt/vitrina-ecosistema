@@ -1,10 +1,13 @@
+# Dependencias del servidor: lo único que instala App Service.
+# Las de prueba y calidad están en requirements-dev.txt.
+
 # Django 5.2 LTS: soporte extendido (parches de seguridad) hasta abril de 2028,
 # segun https://www.djangoproject.com/download/ (verificado 2026-10-14).
 Django==5.2.18
 djangorestframework==3.18.1
 psycopg[binary]==3.3.6
 django-environ==0.14.0
-pytest==9.1.1
-pytest-django==4.14.0
-black==26.5.1
-flake8==7.3.0
+# Servidor WSGI de producción (App Service Linux).
+gunicorn==26.2.0
+# Estáticos servidos por la propia aplicación, comprimidos y con caché larga.
+whitenoise==6.12.0

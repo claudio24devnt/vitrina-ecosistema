@@ -347,12 +347,16 @@ de mes). Toda integración externa pasa por la API REST. **SII (boleta) y
 pasarela de pago quedan fuera de la v1**: documentar puntos de extensión, no
 implementarlos.
 
-Infraestructura (paquete 1.6): Application Gateway con WAF (OWASP) como único
-componente con IP pública, TLS ahí, NSG sólo 443; App Service Linux en subred
-privada con identidad administrada; PostgreSQL Flexible Server con Private
-Endpoint, NSG sólo 5432 desde la subred de aplicación; Key Vault para secretos
-(nunca en `settings.py`, `.env` versionado ni variables del App Service);
-despliegue con OIDC federado desde GitHub Actions. En local: PostgreSQL con
+Infraestructura (paquete 1.6), **perfil sin gateway (decidido 2026-10-17)**: el
+Application Gateway con WAF del diseño original (~USD 320/mes) no es costeable
+con el crédito de Azure for Students; **no reintroducirlo** sin que se pida. App
+Service Linux B1 como entrada pública (HTTPS obligatorio, TLS 1.2, identidad
+administrada, integración de red de salida); PostgreSQL Flexible B1ms en subred
+delegada sin IP pública, NSG sólo 5432 desde la subred de aplicación; Key Vault
+para secretos, abierto sólo a esa subred (nunca en `settings.py`, `.env`
+versionado ni como valor en variables del App Service: sólo referencias);
+despliegue con OIDC federado desde GitHub Actions. Presupuesto objetivo ~USD
+13–15/mes; ver `infra/README.md`. En local: PostgreSQL con
 datos ficticios; **ninguna prueba toca datos reales de un almacén**.
 
 ---
@@ -499,7 +503,8 @@ años.
     más reciente sin ver y los cierres sin ver; «Entendido» las marca vistas.
   - Pantalla `/reportes/mensual/?mes=AAAA-MM` y `GET /api/reportes/mensual/` (sólo
     admin). Filtro `porcentaje` en `formato`.
-- **1.4.5 (en curso, rama `1.4.4-reporteria`):**
+- **1.4.4 y 1.4.5 integrados en main** (`291afd1`).
+- **1.4.5:**
   - `apps/almacenes/test_sistema.py`: los seis CU de punta a punta con login real y
     CSRF activo (jornada completa CU-06 → 01 → 02 con 2a y 6a → 03 → 05 → 04), los
     alternativos y seguridad entre almacenes.
@@ -507,9 +512,27 @@ años.
     de demostración «Almacén Ficticio Los Aromos» (`admin@demo.ficticio.test` /
     `vendedora@demo.ficticio.test`, clave `clave-ficticia-123`). Sólo con DEBUG;
     todo por servicios y luego fechado hacia atrás. Patrones inventados, no medición.
-  - `pruebas_carga/locustfile.py` (Locust en `requirements-dev.txt`): escaneo y
+  - `pruebas_carga/locustfile.py` (Locust en `pruebas_carga/requirements.txt`): escaneo y
     venta; sale con código 1 si el p95 de caja supera 2 s. Pendiente: correrla
     contra el App Service (1.6).
+- **1.6 (en curso, rama `1.6-despliegue`; sin suscripción de Azure aún):**
+  - `infra/` en Bicep (ver `infra/README.md`: decisiones, costos, pasos). Compila
+    y pasa el lint; nunca se ha aplicado. Fase 2 opcional para dominio propio
+    con certificado administrado. Workflow `.github/workflows/despliegue.yml`.
+  - Producción con `DJANGO_PRODUCCION=True`: WhiteNoise con manifiesto, cookies
+    seguras, HSTS, proxy TLS, `CSRF_TRUSTED_ORIGINS`, `sslmode=require`, log a
+    stdout. App Service corre al arrancar `check --deploy`, `migrate`,
+    `collectstatic` y `gunicorn`. Probado en `tivoscanea/test_produccion.py`.
+  - Dependencias: `requirements.txt` sólo servidor (agrega gunicorn y whitenoise);
+    `requirements-dev.txt` pruebas y calidad (lo instala el CI).
+  - Corregido: `DEBUG` se leía como texto («False» era verdadero) desde 1.4.1.
+  - Bootstrap sin las líneas `sourceMappingURL` (ver su `LEEME.txt`).
+  - Scheduler: WebJobs del App Service (decidido 2026-10-17) en
+    `webjobs/` → `scripts/publicar_webjobs.py` (API de Kudu, tras cada despliegue;
+    Oryx comprime la app y `App_Data/` no llega) → `scripts/webjob.sh` → `manage.py`. Stock bajo a
+    las 06:30 y aviso de cierre a las 00:15, ambos diarios (idempotentes), en hora
+    de Santiago. Ver `webjobs/LEEME.md`.
+  - Pendiente: monitoreo, HSTS según dominio, verificar los WebJobs en Azure.
 - Montos en pantalla con el filtro `pesos` (`{% load formato %}`).
 - Textos en español de Chile con tuteo («Ingresa», «Escribe»), sin voseo.
 - Regla que se mantiene: **toda variación de `stock_actual` pasa por la capa
@@ -521,8 +544,8 @@ años.
 .\.venv\Scripts\Activate.ps1
 python manage.py runserver
 python -m pytest
-black apps tivoscanea manage.py conftest.py pruebas_carga
-flake8 apps tivoscanea manage.py conftest.py pruebas_carga
+black apps tivoscanea manage.py conftest.py pruebas_carga scripts
+flake8 apps tivoscanea manage.py conftest.py pruebas_carga scripts
 python manage.py cargar_datos_ficticios --limpiar   # datos de demostración
 python manage.py alertar_stock_bajo; python manage.py avisar_cierre_mes
 python manage.py makemigrations && python manage.py migrate
