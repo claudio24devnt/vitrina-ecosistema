@@ -523,7 +523,11 @@ años.
     `requirements-dev.txt` pruebas y calidad (lo instala el CI).
   - Corregido: `DEBUG` se leía como texto («False» era verdadero) desde 1.4.1.
   - Bootstrap sin las líneas `sourceMappingURL` (ver su `LEEME.txt`).
-  - Pendiente: scheduler de los comandos, monitoreo, HSTS según dominio.
+  - Scheduler: WebJobs del App Service (decidido 2026-10-17) en
+    `App_Data/jobs/triggered/` → `scripts/webjob.sh` → `manage.py`. Stock bajo a
+    las 06:30 y aviso de cierre a las 00:15, ambos diarios (idempotentes), en hora
+    de Santiago. Ver `App_Data/LEEME.md`.
+  - Pendiente: monitoreo, HSTS según dominio, verificar los WebJobs en Azure.
 - Montos en pantalla con el filtro `pesos` (`{% load formato %}`).
 - Textos en español de Chile con tuteo («Ingresa», «Escribe»), sin voseo.
 - Regla que se mantiene: **toda variación de `stock_actual` pasa por la capa

@@ -53,9 +53,12 @@ Internet ──443──▶ Application Gateway WAF_v2 (OWASP 3.2, Prevención, 
    acepta en `ALLOWED_HOSTS` y el dominio público va en `CSRF_TRUSTED_ORIGINS`.
 6. **Región**: `brazilsouth`. Hay región Chile Central; falta verificar que tenga
    Application Gateway WAF_v2 y PostgreSQL Flexible antes de cambiarla.
-7. **Scheduler de los comandos** (`alertar_stock_bajo` diario, `avisar_cierre_mes`
-   el día 1): **sin resolver**. No hay un servicio en el §5 que los dispare;
-   opciones en la sección «Pendiente».
+7. **Scheduler: WebJobs del mismo App Service** (decidido 2026-10-17). Sin
+   recurso nuevo ni costo extra; corren en el mismo contenedor, con las mismas
+   variables y la misma red. Horarios en `App_Data/LEEME.md`. Requieren *Always
+   On* (plan Basic o superior) y `WEBSITE_SKIP_RUNNING_KUDUAGENT=false`.
+   **Verificar en el primer despliegue** que el job encuentra el entorno virtual
+   de la compilación: ejecutarlo a mano desde el portal y revisar su log.
 
 ## Costos aproximados (orden de magnitud, sin verificar contra la calculadora)
 
@@ -113,8 +116,6 @@ lista `despliegue.yml`, y hacer merge a `main`.
 
 - **HSTS con subdominios y preload** (`security.W005`/`W021`): se decide al
   tener el dominio definitivo. Es lo único que `check --deploy` deja pendiente.
-- **Scheduler**: WebJobs en App Service Linux, un Container Apps Job, o una
-  Function con temporizador. Cualquiera es un recurso más que el §5 no lista.
 - **Monitoreo**: Application Insights / Log Analytics no está en el §5.
 - **Restauración probada**: el RTO de 4 h (§7) exige ensayar una restauración
   del respaldo de PostgreSQL al menos una vez.

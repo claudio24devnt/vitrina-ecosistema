@@ -66,6 +66,10 @@ resource sitio 'Microsoft.Web/sites@2023-12-01' = {
       appSettings: [
         { name: 'SCM_DO_BUILD_DURING_DEPLOYMENT', value: 'true' }
         { name: 'DISABLE_COLLECTSTATIC', value: 'true' }
+        // WebJobs (App_Data/jobs/triggered): en Linux necesitan el agente de Kudu, y
+        // sus horarios se leen en hora de Chile y no en UTC.
+        { name: 'WEBSITE_SKIP_RUNNING_KUDUAGENT', value: 'false' }
+        { name: 'WEBSITE_TIME_ZONE', value: 'America/Santiago' }
         { name: 'DJANGO_SECRET_KEY', value: '${referencia}django-secret-key)' }
         { name: 'DJANGO_DEBUG', value: 'False' }
         { name: 'DJANGO_PRODUCCION', value: 'True' }
