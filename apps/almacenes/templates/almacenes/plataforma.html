@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+
+{% block titulo %}Almacenes — TivoScanea{% endblock %}
+
+{% block contenido %}
+<h1 class="h3 mb-1">Almacenes</h1>
+<p class="text-secondary mb-3">Alta de almacenes clientes. Cada uno nace con su administrador, que después crea sus vendedores.</p>
+<div class="row g-4">
+    <div class="col-lg-5">
+        <div class="card shadow-sm">
+            <div class="card-body">
+                <h2 class="h5">Nuevo almacén</h2>
+                <form method="post" novalidate>
+                    {% csrf_token %}
+                    {% include "_campos_formulario.html" %}
+                    <button type="submit" class="btn btn-success">Crear almacén</button>
+                </form>
+            </div>
+        </div>
+    </div>
+    <div class="col-lg-7">
+        {% if almacenes %}
+        <div class="table-responsive bg-white rounded shadow-sm">
+            <table class="table align-middle mb-0">
+                <thead class="table-light">
+                    <tr><th>Almacén</th><th>RUT</th><th class="d-none d-sm-table-cell">Plan</th><th class="d-none d-md-table-cell">Alta</th></tr>
+                </thead>
+                <tbody>
+                    {% for almacen in almacenes %}
+                    <tr class="{% if not almacen.activo %}text-secondary{% endif %}">
+                        <td>{{ almacen.razon_social }}{% if not almacen.activo %} <span class="badge text-bg-light border">inactivo</span>{% endif %}</td>
+                        <td>{{ almacen.rut }}</td>
+                        <td class="d-none d-sm-table-cell">{{ almacen.plan }}</td>
+                        <td class="d-none d-md-table-cell">{{ almacen.fecha_alta|date:"d-m-Y" }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="alert alert-light border">Todavía no hay almacenes clientes.</div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

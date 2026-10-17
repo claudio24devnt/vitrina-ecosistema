@@ -22,3 +22,30 @@ class FormularioBootstrap(forms.Form):
             if nombre in self.fields:
                 widget = self.fields[nombre].widget
                 widget.attrs["class"] = f"{widget.attrs.get('class', '')} is-invalid".strip()
+
+
+class AltaAlmacenForm(FormularioBootstrap):
+    """Alta de un almacén cliente y su primer administrador (pantalla del operador)."""
+
+    razon_social = forms.CharField(label="Razón social", max_length=120)
+    rut = forms.CharField(
+        label="RUT del almacén", max_length=12, help_text="Ej.: 76.123.456-7"
+    )
+    direccion = forms.CharField(label="Dirección", max_length=200, required=False)
+    plan = forms.CharField(label="Plan", max_length=20, initial="basico")
+    nombre_admin = forms.CharField(label="Nombre del administrador", max_length=120)
+    email_admin = forms.EmailField(
+        label="Correo del administrador (con él inicia sesión)", max_length=150
+    )
+    password = forms.CharField(
+        label="Contraseña inicial", widget=forms.PasswordInput, strip=False
+    )
+    password_repetida = forms.CharField(
+        label="Repite la contraseña", widget=forms.PasswordInput, strip=False
+    )
+
+    def clean(self):
+        datos = super().clean()
+        if datos.get("password") != datos.get("password_repetida"):
+            self.add_error("password_repetida", "Las contraseñas no coinciden.")
+        return datos

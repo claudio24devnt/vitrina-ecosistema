@@ -533,6 +533,13 @@ años.
     las 06:30 y aviso de cierre a las 00:15, ambos diarios (idempotentes), en hora
     de Santiago. Ver `webjobs/LEEME.md`.
   - Pendiente: monitoreo, HSTS según dominio, verificar los WebJobs en Azure.
+- **Operador de la plataforma (2026-10-17, no estaba en el brief):** alta de
+  almacenes en `/plataforma/almacenes/`, sólo para `is_superuser`
+  (`operador_requerido`). `alta_almacen()` crea almacén, franjas y primer
+  administrador todo o nada; `normalizar_rut()` valida el DV y guarda
+  «12345678-9». El operador vive en un almacén de plan `operacion` (el modelo exige
+  `id_almacen`), excluido de la lista; lo crea `manage.py crear_operador`, que pide
+  la contraseña. No hay registro autoservicio.
 - Montos en pantalla con el filtro `pesos` (`{% load formato %}`).
 - Textos en español de Chile con tuteo («Ingresa», «Escribe»), sin voseo.
 - Regla que se mantiene: **toda variación de `stock_actual` pasa por la capa

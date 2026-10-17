@@ -110,6 +110,11 @@ con las variables que lista `despliegue.yml`, completar `repositorio` en
 `main.bicepparam`, y hacer merge a `main`. El primer arranque corre las
 migraciones.
 
+Primer operador (una vez): `az webapp ssh -g rg-tivoscanea -n <app>`, y dentro
+`cd /tmp/*/ && source antenv/bin/activate && python manage.py crear_operador
+--nombre "..." --email ... --rut ...` (pide la contraseña sin mostrarla). Con él
+se entra a «Almacenes» y se da de alta cada almacén con su administrador.
+
 ### Fase 2 (opcional): dominio propio
 
 1. En el DNS del dominio: `CNAME app → <salida hostApp>` y
@@ -121,8 +126,6 @@ migraciones.
 
 ## Pendiente
 
-- **Alta del primer almacén y su administrador en producción**: no hay pantalla
-  de registro de almacenes; hoy sería `crear_almacen()` desde una consola SSH.
 - **HSTS con subdominios y preload** (`security.W005`/`W021`): al tener dominio.
 - **Monitoreo**: Application Insights no está en el §5.
 - **Restauración probada**: el RTO de 4 h (§7) exige ensayar una restauración
