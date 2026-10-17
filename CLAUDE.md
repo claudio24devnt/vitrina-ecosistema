@@ -347,12 +347,16 @@ de mes). Toda integración externa pasa por la API REST. **SII (boleta) y
 pasarela de pago quedan fuera de la v1**: documentar puntos de extensión, no
 implementarlos.
 
-Infraestructura (paquete 1.6): Application Gateway con WAF (OWASP) como único
-componente con IP pública, TLS ahí, NSG sólo 443; App Service Linux en subred
-privada con identidad administrada; PostgreSQL Flexible Server con Private
-Endpoint, NSG sólo 5432 desde la subred de aplicación; Key Vault para secretos
-(nunca en `settings.py`, `.env` versionado ni variables del App Service);
-despliegue con OIDC federado desde GitHub Actions. En local: PostgreSQL con
+Infraestructura (paquete 1.6), **perfil sin gateway (decidido 2026-10-17)**: el
+Application Gateway con WAF del diseño original (~USD 320/mes) no es costeable
+con el crédito de Azure for Students; **no reintroducirlo** sin que se pida. App
+Service Linux B1 como entrada pública (HTTPS obligatorio, TLS 1.2, identidad
+administrada, integración de red de salida); PostgreSQL Flexible B1ms en subred
+delegada sin IP pública, NSG sólo 5432 desde la subred de aplicación; Key Vault
+para secretos, abierto sólo a esa subred (nunca en `settings.py`, `.env`
+versionado ni como valor en variables del App Service: sólo referencias);
+despliegue con OIDC federado desde GitHub Actions. Presupuesto objetivo ~USD
+13–15/mes; ver `infra/README.md`. En local: PostgreSQL con
 datos ficticios; **ninguna prueba toca datos reales de un almacén**.
 
 ---
@@ -513,8 +517,8 @@ años.
     contra el App Service (1.6).
 - **1.6 (en curso, rama `1.6-despliegue`; sin suscripción de Azure aún):**
   - `infra/` en Bicep (ver `infra/README.md`: decisiones, costos, pasos). Compila
-    y pasa el lint; nunca se ha aplicado. Despliegue en dos fases por el
-    certificado TLS. Workflow `.github/workflows/despliegue.yml` con OIDC.
+    y pasa el lint; nunca se ha aplicado. Fase 2 opcional para dominio propio
+    con certificado administrado. Workflow `.github/workflows/despliegue.yml`.
   - Producción con `DJANGO_PRODUCCION=True`: WhiteNoise con manifiesto, cookies
     seguras, HSTS, proxy TLS, `CSRF_TRUSTED_ORIGINS`, `sslmode=require`, log a
     stdout. App Service corre al arrancar `check --deploy`, `migrate`,

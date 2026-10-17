@@ -1,26 +1,25 @@
-// App Service Linux (Python 3.12) con identidad administrada (§5).
-//
-// Entrada: sólo por el private endpoint, desde el Application Gateway. El sitio
-// principal rechaza todo lo demás (ipSecurityRestrictionsDefaultAction: Deny).
-// El sitio de despliegue (SCM/Kudu) queda alcanzable desde GitHub Actions, pero
-// sin credenciales de publicación: sólo acepta tokens de Entra ID (OIDC).
-// Salida: integración de red con route-all, para llegar a PostgreSQL y Key Vault
-// por sus private endpoints.
+// App Service Linux (Python 3.12) con identidad administrada (§5, perfil sin
+// gateway). Es la entrada pública: HTTPS obligatorio, TLS 1.2+, sin FTP ni
+// credenciales de publicación (sólo Entra ID). Salida por integración de red con
+// route-all, para llegar a PostgreSQL y Key Vault por la VNet.
 //
 // Los secretos no están en la configuración: los valores son referencias a Key
 // Vault que App Service resuelve con su identidad administrada.
+//
+// Dominio propio (fase 2, opcional): con `enlazarDominio` se agrega el nombre y un
+// certificado administrado gratuito de App Service. Antes hay que crear en el DNS
+// el CNAME al host *.azurewebsites.net y el TXT asuid (ver README).
 
 param nombre string
 param ubicacion string
 param etiquetas object
 param idSubredApp string
-param idSubredPrivada string
-param idZonaDns string
 param nombreKeyVault string
 param hostBaseDatos string
 param nombreBaseDatos string
 param usuarioBaseDatos string
-param dominio string
+param dominio string = ''
+param enlazarDominio bool = false
 param sku string = 'B1'
 
 resource plan 'Microsoft.Web/serverfarms@2023-12-01' = {
@@ -33,6 +32,9 @@ resource plan 'Microsoft.Web/serverfarms@2023-12-01' = {
 }
 
 var referencia = '@Microsoft.KeyVault(VaultName=${nombreKeyVault};SecretName='
+var hostAzure = '${nombre}.azurewebsites.net'
+var hosts = empty(dominio) ? hostAzure : '${hostAzure},${dominio}'
+var origenes = empty(dominio) ? 'https://${hostAzure}' : 'https://${hostAzure},https://${dominio}'
 
 resource sitio 'Microsoft.Web/sites@2023-12-01' = {
   name: nombre
@@ -46,10 +48,9 @@ resource sitio 'Microsoft.Web/sites@2023-12-01' = {
     clientAffinityEnabled: false
     virtualNetworkSubnetId: idSubredApp
     vnetRouteAllEnabled: true
-    publicNetworkAccess: 'Enabled'
     siteConfig: {
       linuxFxVersion: 'PYTHON|3.12'
-      alwaysOn: true
+      alwaysOn: true // lo exigen los WebJobs programados
       ftpsState: 'Disabled'
       minTlsVersion: '1.2'
       http20Enabled: true
@@ -60,9 +61,6 @@ resource sitio 'Microsoft.Web/sites@2023-12-01' = {
       // collectstatic también va aquí y no en la compilación (Oryx), donde las
       // referencias a Key Vault podrían no estar resueltas todavía.
       appCommandLine: 'python manage.py check --deploy --fail-level ERROR && python manage.py migrate --noinput && python manage.py collectstatic --noinput && gunicorn tivoscanea.wsgi --bind=0.0.0.0:8000 --workers=2 --timeout=60'
-      ipSecurityRestrictionsDefaultAction: 'Deny'
-      scmIpSecurityRestrictionsUseMain: false
-      scmIpSecurityRestrictionsDefaultAction: 'Allow'
       appSettings: [
         { name: 'SCM_DO_BUILD_DURING_DEPLOYMENT', value: 'true' }
         { name: 'DISABLE_COLLECTSTATIC', value: 'true' }
@@ -73,17 +71,15 @@ resource sitio 'Microsoft.Web/sites@2023-12-01' = {
         { name: 'DJANGO_SECRET_KEY', value: '${referencia}django-secret-key)' }
         { name: 'DJANGO_DEBUG', value: 'False' }
         { name: 'DJANGO_PRODUCCION', value: 'True' }
-        { name: 'DB_SSLMODE', value: 'require' }
-        { name: 'DB_CONN_MAX_AGE', value: '60' }
-        // El gateway reenvía con el host *.azurewebsites.net: ése es el que ve Django.
-        // El dominio público llega en el Origin del navegador y se acepta por CSRF.
-        { name: 'DJANGO_ALLOWED_HOSTS', value: '${nombre}.azurewebsites.net' }
-        { name: 'DJANGO_CSRF_TRUSTED_ORIGINS', value: 'https://${dominio}' }
+        { name: 'DJANGO_ALLOWED_HOSTS', value: hosts }
+        { name: 'DJANGO_CSRF_TRUSTED_ORIGINS', value: origenes }
         { name: 'DB_HOST', value: hostBaseDatos }
         { name: 'DB_NAME', value: nombreBaseDatos }
         { name: 'DB_USER', value: usuarioBaseDatos }
         { name: 'DB_PASSWORD', value: '${referencia}db-password)' }
         { name: 'DB_PORT', value: '5432' }
+        { name: 'DB_SSLMODE', value: 'require' }
+        { name: 'DB_CONN_MAX_AGE', value: '60' }
       ]
     }
   }
@@ -102,20 +98,41 @@ resource sinScmBasico 'Microsoft.Web/sites/basicPublishingCredentialsPolicies@20
   properties: { allow: false }
 }
 
-module endpoint 'endpoint-privado.bicep' = {
-  name: 'pe-app'
+// Fase 2: dominio propio con certificado administrado (gratuito, se renueva solo).
+// El enlace se crea primero sin TLS, el certificado lo valida, y después se vuelve a
+// declarar el enlace con SNI en un módulo (no se puede declarar dos veces aquí).
+resource enlace 'Microsoft.Web/sites/hostNameBindings@2023-12-01' = if (enlazarDominio && !empty(dominio)) {
+  parent: sitio
+  name: dominio
+  properties: {
+    siteName: sitio.name
+    hostNameType: 'Verified'
+    sslState: 'Disabled'
+  }
+}
+
+resource certificado 'Microsoft.Web/certificates@2023-12-01' = if (enlazarDominio && !empty(dominio)) {
+  name: '${nombre}-${dominio}'
+  location: ubicacion
+  tags: etiquetas
+  dependsOn: [ enlace ]
+  properties: {
+    serverFarmId: plan.id
+    canonicalName: dominio
+  }
+}
+
+module enlaceTls 'enlace-tls.bicep' = if (enlazarDominio && !empty(dominio)) {
+  name: 'enlace-tls'
   params: {
-    nombre: 'pe-${nombre}'
-    ubicacion: ubicacion
-    etiquetas: etiquetas
-    idSubred: idSubredPrivada
-    idRecurso: sitio.id
-    grupo: 'sites'
-    idZonaDns: idZonaDns
+    nombreSitio: sitio.name
+    dominio: dominio
+    huella: certificado!.properties.thumbprint
   }
 }
 
 output nombre string = sitio.name
-output id string = sitio.id
 output hostPorDefecto string = sitio.properties.defaultHostName
 output idPrincipal string = sitio.identity.principalId
+@description('Valor del registro TXT asuid.<dominio> que pide App Service para validar el dominio.')
+output idVerificacionDominio string = sitio.properties.customDomainVerificationId

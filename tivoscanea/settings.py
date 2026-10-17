@@ -19,10 +19,10 @@ if env_file.exists():
 SECRET_KEY = env("DJANGO_SECRET_KEY")
 DEBUG = env.bool("DJANGO_DEBUG", default=False)
 ALLOWED_HOSTS = env.list("DJANGO_ALLOWED_HOSTS", default=["localhost", "127.0.0.1"])
-# El gateway reenvía con el host de Azure; el dominio público llega en el Origin.
+# Orígenes HTTPS aceptados en los POST (host de Azure y dominio propio).
 CSRF_TRUSTED_ORIGINS = env.list("DJANGO_CSRF_TRUSTED_ORIGINS", default=[])
 
-# Producción (App Service detrás del Application Gateway). Es una bandera aparte de
+# Producción (App Service en Azure). Es una bandera aparte de
 # DEBUG porque el CI corre con DEBUG=False sobre HTTP y no debe exigir HTTPS.
 PRODUCCION = env.bool("DJANGO_PRODUCCION", default=False)
 
@@ -175,8 +175,8 @@ UMBRAL_CAIDA_VENTAS_PORCENTAJE = env.int("UMBRAL_CAIDA_VENTAS_PORCENTAJE", defau
 if PRODUCCION:
     MIDDLEWARE.insert(1, "whitenoise.middleware.WhiteNoiseMiddleware")
 
-# Seguridad en producción (OWASP Top 10, §8). El TLS lo termina el gateway y App
-# Service reenvía X-Forwarded-Proto: https.
+# Seguridad en producción (OWASP Top 10, §8). El TLS lo termina App Service, que
+# reenvía X-Forwarded-Proto: https.
 if PRODUCCION:
     SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
     SESSION_COOKIE_SECURE = True

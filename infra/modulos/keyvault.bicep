@@ -1,7 +1,7 @@
 // Key Vault: único lugar donde viven los secretos (§5). Autorización por RBAC.
-// La aplicación y el gateway llegan por el private endpoint; desde Internet sólo
-// la IP del administrador, para cargar a mano el certificado TLS y
-// `django-secret-key` (ver README). Con `ipAdministrador` vacío queda cerrado.
+// Desde la red sólo entran la subred de la aplicación (service endpoint, sin
+// costo) y, si se indica, la IP de quien administra, para cargar a mano
+// `django-secret-key` (ver README).
 //
 // `django-secret-key` NO se crea aquí, para que no pase por parámetros ni quede en
 // el historial de despliegues.
@@ -9,8 +9,7 @@
 param nombre string
 param ubicacion string
 param etiquetas object
-param idSubredPrivada string
-param idZonaDns string
+param idSubredApp string
 param ipAdministrador string = ''
 
 @secure()
@@ -27,10 +26,11 @@ resource kv 'Microsoft.KeyVault/vaults@2023-07-01' = {
     enableSoftDelete: true
     softDeleteRetentionInDays: 30
     enablePurgeProtection: true
-    publicNetworkAccess: empty(ipAdministrador) ? 'Disabled' : 'Enabled'
+    publicNetworkAccess: 'Enabled'
     networkAcls: {
       defaultAction: 'Deny'
       bypass: 'AzureServices'
+      virtualNetworkRules: [ { id: idSubredApp } ]
       ipRules: empty(ipAdministrador) ? [] : [ { value: ipAdministrador } ]
     }
   }
@@ -42,19 +42,4 @@ resource secretoBd 'Microsoft.KeyVault/vaults/secrets@2023-07-01' = {
   properties: { value: claveBaseDatos }
 }
 
-module endpoint 'endpoint-privado.bicep' = {
-  name: 'pe-keyvault'
-  params: {
-    nombre: 'pe-${nombre}'
-    ubicacion: ubicacion
-    etiquetas: etiquetas
-    idSubred: idSubredPrivada
-    idRecurso: kv.id
-    grupo: 'vault'
-    idZonaDns: idZonaDns
-  }
-}
-
 output nombre string = kv.name
-output id string = kv.id
-output uri string = kv.properties.vaultUri

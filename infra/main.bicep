@@ -1,12 +1,13 @@
-// Infraestructura de TivoScanea en Azure (paquete 1.6, §5 del brief).
-// Se despliega a un grupo de recursos:
+// Infraestructura de TivoScanea en Azure (paquete 1.6, §5 del brief), perfil sin
+// Application Gateway (decidido 2026-10-17 por costo). Se despliega a un grupo de
+// recursos:
 //
-//   az deployment group create -g rg-tivoscanea-prod -f infra/main.bicep \
+//   az deployment group create -g rg-tivoscanea -f infra/main.bicep \
 //     -p infra/main.bicepparam
 //
-// En dos fases (ver infra/README.md): la primera con desplegarGateway=false crea
-// todo menos el gateway; se cargan a mano el certificado y la SECRET_KEY en Key
-// Vault; la segunda, con true, crea el gateway que usa ese certificado.
+// Fase 1 crea todo con el host *.azurewebsites.net. Fase 2 (opcional), con el DNS
+// del dominio ya apuntando, agrega el dominio propio y su certificado. Ver
+// infra/README.md.
 
 targetScope = 'resourceGroup'
 
@@ -14,19 +15,17 @@ targetScope = 'resourceGroup'
 @maxLength(12)
 param prefijo string = 'tivoscanea'
 
+@description('Región. Azure for Students sólo permite algunas: ver README.')
 param ubicacion string = resourceGroup().location
 
-@description('Dominio público del sistema, p. ej. app.tivoscanea.cl.')
-param dominio string
+@description('Dominio propio, p. ej. app.tivoscanea.cl. Vacío = sólo *.azurewebsites.net.')
+param dominio string = ''
+
+@description('Fase 2: enlazar el dominio y emitir su certificado (exige el DNS listo).')
+param enlazarDominio bool = false
 
 @description('Repositorio de GitHub «usuario/repositorio» autorizado a desplegar.')
 param repositorio string
-
-@description('Nombre del certificado TLS importado en Key Vault.')
-param nombreCertificado string = 'tivoscanea-tls'
-
-@description('Fase 2: crear el Application Gateway (exige el certificado ya cargado).')
-param desplegarGateway bool = false
 
 @description('IP pública de quien administra, para cargar secretos en Key Vault. Vacía = cerrado.')
 param ipAdministrador string = ''
@@ -43,11 +42,10 @@ param etiquetas object = {
 }
 
 // Nombres globales únicos: Key Vault, App Service y PostgreSQL exponen un DNS.
-var sufijo = uniqueString(resourceGroup().id)
-var nombreKeyVault = 'kv-${prefijo}-${take(sufijo, 6)}'
-var nombreApp = 'app-${prefijo}-${take(sufijo, 6)}'
-var nombrePostgres = 'psql-${prefijo}-${take(sufijo, 6)}'
-var nombreBaseDatos = 'tivoscanea_db'
+var sufijo = take(uniqueString(resourceGroup().id), 6)
+var nombreKeyVault = 'kv-${prefijo}-${sufijo}'
+var nombreApp = 'app-${prefijo}-${sufijo}'
+var nombrePostgres = 'psql-${prefijo}-${sufijo}'
 
 module red 'modulos/red.bicep' = {
   name: 'red'
@@ -55,6 +53,7 @@ module red 'modulos/red.bicep' = {
     ubicacion: ubicacion
     prefijo: prefijo
     etiquetas: etiquetas
+    nombrePostgres: nombrePostgres
   }
 }
 
@@ -64,8 +63,7 @@ module keyVault 'modulos/keyvault.bicep' = {
     nombre: nombreKeyVault
     ubicacion: ubicacion
     etiquetas: etiquetas
-    idSubredPrivada: red.outputs.idSubredPrivada
-    idZonaDns: red.outputs.idZonaKeyVault
+    idSubredApp: red.outputs.idSubredApp
     ipAdministrador: ipAdministrador
     claveBaseDatos: claveBaseDatos
   }
@@ -77,11 +75,11 @@ module postgres 'modulos/postgres.bicep' = {
     nombre: nombrePostgres
     ubicacion: ubicacion
     etiquetas: etiquetas
-    idSubredPrivada: red.outputs.idSubredPrivada
+    idSubredPostgres: red.outputs.idSubredPostgres
     idZonaDns: red.outputs.idZonaPostgres
     usuarioAdmin: usuarioBaseDatos
     claveAdmin: claveBaseDatos
-    nombreBaseDatos: nombreBaseDatos
+    nombreBaseDatos: 'tivoscanea_db'
   }
 }
 
@@ -92,13 +90,12 @@ module app 'modulos/appservice.bicep' = {
     ubicacion: ubicacion
     etiquetas: etiquetas
     idSubredApp: red.outputs.idSubredApp
-    idSubredPrivada: red.outputs.idSubredPrivada
-    idZonaDns: red.outputs.idZonaWeb
     nombreKeyVault: keyVault.outputs.nombre
     hostBaseDatos: postgres.outputs.fqdn
     nombreBaseDatos: postgres.outputs.nombreBaseDatos
     usuarioBaseDatos: usuarioBaseDatos
     dominio: dominio
+    enlazarDominio: enlazarDominio
   }
 }
 
@@ -108,19 +105,6 @@ module appLeeSecretos 'modulos/acceso-keyvault.bicep' = {
   params: {
     nombreKeyVault: keyVault.outputs.nombre
     idPrincipal: app.outputs.idPrincipal
-  }
-}
-
-module gateway 'modulos/gateway.bicep' = if (desplegarGateway) {
-  name: 'gateway'
-  params: {
-    nombre: 'agw-${prefijo}'
-    ubicacion: ubicacion
-    etiquetas: etiquetas
-    idSubredGateway: red.outputs.idSubredGateway
-    hostApp: app.outputs.hostPorDefecto
-    nombreKeyVault: keyVault.outputs.nombre
-    uriCertificado: '${keyVault.outputs.uri}secrets/${nombreCertificado}'
   }
 }
 
@@ -135,8 +119,11 @@ module oidc 'modulos/oidc.bicep' = {
   }
 }
 
-output ipPublica string = desplegarGateway ? gateway!.outputs.ipPublica : 'fase 1: sin gateway'
+output url string = 'https://${empty(dominio) ? app.outputs.hostPorDefecto : dominio}'
 output nombreApp string = app.outputs.nombre
 output nombreKeyVault string = keyVault.outputs.nombre
+@description('Para el DNS del dominio: CNAME al host y TXT asuid con este valor.')
+output hostApp string = app.outputs.hostPorDefecto
+output idVerificacionDominio string = app.outputs.idVerificacionDominio
 @description('Va en la variable AZURE_CLIENT_ID del entorno «produccion» de GitHub.')
 output idClienteGithub string = oidc.outputs.idCliente
