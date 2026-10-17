@@ -12,7 +12,7 @@ import pytest
 from apps.almacenes.models import Almacen
 from apps.almacenes.servicios import crear_almacen
 from apps.inventario.models import Categoria, MovimientoStock, Producto, TipoMovimiento
-from apps.reporteria.models import AccesoReporte
+from apps.reporteria.models import AccesoReporte, Alerta, TipoAlerta
 from apps.usuarios.models import RolUsuario, Usuario
 from apps.ventas.models import DetalleVenta, MedioPago, Venta
 
@@ -28,6 +28,7 @@ class DatosAlmacen:
     detalle: DetalleVenta
     movimiento: MovimientoStock
     acceso: AccesoReporte
+    alerta: Alerta
 
 
 def poblar_almacen(sufijo, rut):
@@ -74,8 +75,20 @@ def poblar_almacen(sufijo, rut):
     acceso = AccesoReporte.objects.del_almacen(almacen).create(
         id_usuario=admin, mes_consultado=date(2026, 9, 1)
     )
+    alerta = Alerta.objects.del_almacen(almacen).create(
+        tipo=TipoAlerta.STOCK_BAJO, fecha_referencia=date(2026, 9, 30), mensaje="Ficticia"
+    )
     return DatosAlmacen(
-        almacen, admin, vendedor, categoria, producto, venta, detalle, movimiento, acceso
+        almacen,
+        admin,
+        vendedor,
+        categoria,
+        producto,
+        venta,
+        detalle,
+        movimiento,
+        acceso,
+        alerta,
     )
 
 

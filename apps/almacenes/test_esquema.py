@@ -92,6 +92,16 @@ COLUMNAS = {
         "hora_inicio": ("time without time zone", False),
         "hora_fin": ("time without time zone", False),
     },
+    "alerta": {
+        "id_alerta": ("bigint", False),
+        "id_almacen": ("bigint", False),
+        "tipo": ("character varying(20)", False),
+        "fecha_referencia": ("date", False),
+        "mensaje": ("character varying(200)", False),
+        "fecha_hora": ("timestamp with time zone", False),
+        "fecha_vista": ("timestamp with time zone", True),
+        "id_usuario_vista": ("bigint", True),
+    },
 }
 
 RESTRICCIONES = {
@@ -110,6 +120,9 @@ RESTRICCIONES = {
     "ck_movimiento_stock_motivo",
     "uq_franja_almacen_nombre",
     "uq_franja_almacen_orden",
+    "ck_alerta_tipo",
+    "ck_alerta_vista_coherente",
+    "uq_alerta",
 }
 
 INDICES = {
@@ -122,6 +135,7 @@ INDICES = {
     "ix_mov_almacen_fecha",
     "ix_acceso_almacen_fecha",
     "ix_franja_almacen",
+    "ix_alerta_pendientes",
 }
 
 
@@ -168,6 +182,14 @@ def test_indice_de_anuladas_es_parcial():
         "SELECT indexdef FROM pg_indexes WHERE indexname = 'ix_venta_anuladas'"
     )[0]
     assert "WHERE" in definicion and "anulada" in definicion
+
+
+@pytest.mark.django_db
+def test_indice_de_alertas_pendientes_es_parcial():
+    (definicion,) = _consultar(
+        "SELECT indexdef FROM pg_indexes WHERE indexname = 'ix_alerta_pendientes'"
+    )[0]
+    assert "WHERE (fecha_vista IS NULL)" in definicion
 
 
 @pytest.mark.django_db

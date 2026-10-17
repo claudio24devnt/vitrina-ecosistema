@@ -1,0 +1,6 @@
+# Herramientas de prueba que no van al servidor. El App Service instala sólo
+# requirements.txt.
+-r requirements.txt
+pytest-cov==7.1.0
+# Prueba de carga del punto de venta (§6: p95 < 2 s). Ver pruebas_carga/locustfile.py.
+locust==2.46.7

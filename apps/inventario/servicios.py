@@ -7,6 +7,7 @@ almacén que el producto, la venta y el usuario a los que se refiere.
 """
 
 from django.db import IntegrityError, transaction
+from django.db.models import F
 
 from apps.almacenes.errores import ReglaDeNegocioError
 
@@ -50,6 +51,15 @@ def buscar_por_codigo(almacen, codigo):
         .filter(codigo_barras=codigo)
         .first()
     )
+
+
+def productos_con_stock_bajo(almacen):
+    """
+    Productos con stock en o bajo el mínimo (`Producto.stock_bajo`). Estar en el mínimo
+    ya cuenta: es el momento de reponer. Fuente única del umbral para el panel, el
+    inventario y la alerta diaria (CU-05).
+    """
+    return Producto.objects.del_almacen(almacen).filter(stock_actual__lte=F("stock_minimo"))
 
 
 def registrar_movimiento(*, producto, tipo, cantidad, usuario, venta=None, motivo=None):
