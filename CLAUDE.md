@@ -499,6 +499,17 @@ años.
     más reciente sin ver y los cierres sin ver; «Entendido» las marca vistas.
   - Pantalla `/reportes/mensual/?mes=AAAA-MM` y `GET /api/reportes/mensual/` (sólo
     admin). Filtro `porcentaje` en `formato`.
+- **1.4.5 (en curso, rama `1.4.4-reporteria`):**
+  - `apps/almacenes/test_sistema.py`: los seis CU de punta a punta con login real y
+    CSRF activo (jornada completa CU-06 → 01 → 02 con 2a y 6a → 03 → 05 → 04), los
+    alternativos y seguridad entre almacenes.
+  - `manage.py cargar_datos_ficticios [--dias N] [--semilla S] [--limpiar]`: almacén
+    de demostración «Almacén Ficticio Los Aromos» (`admin@demo.ficticio.test` /
+    `vendedora@demo.ficticio.test`, clave `clave-ficticia-123`). Sólo con DEBUG;
+    todo por servicios y luego fechado hacia atrás. Patrones inventados, no medición.
+  - `pruebas_carga/locustfile.py` (Locust en `requirements-dev.txt`): escaneo y
+    venta; sale con código 1 si el p95 de caja supera 2 s. Pendiente: correrla
+    contra el App Service (1.6).
 - Montos en pantalla con el filtro `pesos` (`{% load formato %}`).
 - Textos en español de Chile con tuteo («Ingresa», «Escribe»), sin voseo.
 - Regla que se mantiene: **toda variación de `stock_actual` pasa por la capa
@@ -510,8 +521,10 @@ años.
 .\.venv\Scripts\Activate.ps1
 python manage.py runserver
 python -m pytest
-black apps tivoscanea manage.py conftest.py
-flake8 apps tivoscanea manage.py conftest.py
+black apps tivoscanea manage.py conftest.py pruebas_carga
+flake8 apps tivoscanea manage.py conftest.py pruebas_carga
+python manage.py cargar_datos_ficticios --limpiar   # datos de demostración
+python manage.py alertar_stock_bajo; python manage.py avisar_cierre_mes
 python manage.py makemigrations && python manage.py migrate
 ```
 
