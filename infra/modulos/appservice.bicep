@@ -54,7 +54,7 @@ resource sitio 'Microsoft.Web/sites@2023-12-01' = {
       ftpsState: 'Disabled'
       minTlsVersion: '1.2'
       http20Enabled: true
-      healthCheckPath: '/cuentas/login/'
+      healthCheckPath: '/salud/' // tivoscanea/salud.py
       // Al arrancar, con los secretos reales ya resueltos: check de despliegue (bloquea
       // la SECRET_KEY del CI, tivoscanea.E001) y migraciones, porque la base es privada
       // y el runner de GitHub no llega a ella. Si algo falla, la instancia no arranca.
@@ -68,6 +68,8 @@ resource sitio 'Microsoft.Web/sites@2023-12-01' = {
         // sus horarios se leen en hora de Chile y no en UTC.
         { name: 'WEBSITE_SKIP_RUNNING_KUDUAGENT', value: 'false' }
         { name: 'WEBSITE_TIME_ZONE', value: 'America/Santiago' }
+        // El sondeo de arranque también va a /salud/, que no valida el host.
+        { name: 'WEBSITE_WARMUP_PATH', value: '/salud/' }
         { name: 'DJANGO_SECRET_KEY', value: '${referencia}django-secret-key)' }
         { name: 'DJANGO_DEBUG', value: 'False' }
         { name: 'DJANGO_PRODUCCION', value: 'True' }

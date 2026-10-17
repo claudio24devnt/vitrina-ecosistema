@@ -45,6 +45,8 @@ INSTALLED_APPS = [
 ]
 
 MIDDLEWARE = [
+    # Primero: responde el sondeo de salud de App Service sin validar el host.
+    "tivoscanea.salud.SaludMiddleware",
     "django.middleware.security.SecurityMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.common.CommonMiddleware",
@@ -173,7 +175,10 @@ UMBRAL_CAIDA_VENTAS_PORCENTAJE = env.int("UMBRAL_CAIDA_VENTAS_PORCENTAJE", defau
 # En producción la propia aplicación sirve los estáticos (App Service no tiene un
 # servidor web aparte); en desarrollo lo hace runserver.
 if PRODUCCION:
-    MIDDLEWARE.insert(1, "whitenoise.middleware.WhiteNoiseMiddleware")
+    MIDDLEWARE.insert(
+        MIDDLEWARE.index("django.middleware.security.SecurityMiddleware") + 1,
+        "whitenoise.middleware.WhiteNoiseMiddleware",
+    )
 
 # Seguridad en producción (OWASP Top 10, §8). El TLS lo termina App Service, que
 # reenvía X-Forwarded-Proto: https.

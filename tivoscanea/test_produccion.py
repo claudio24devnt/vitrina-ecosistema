@@ -98,7 +98,7 @@ def test_desarrollo_no_exige_https():
 
 def test_whitenoise_va_justo_despues_de_security_solo_en_produccion():
     assert (
-        _leer("MIDDLEWARE[1]", **PRODUCCION) == "'whitenoise.middleware.WhiteNoiseMiddleware'"
+        _leer("MIDDLEWARE[2]", **PRODUCCION) == "'whitenoise.middleware.WhiteNoiseMiddleware'"
     )
     variables = {**PRODUCCION, "DJANGO_PRODUCCION": "False"}
     assert "whitenoise" not in _leer("MIDDLEWARE", **variables)
