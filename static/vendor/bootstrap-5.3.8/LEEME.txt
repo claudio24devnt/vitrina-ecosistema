@@ -1,0 +1,8 @@
+Bootstrap 5.3.8 (licencia MIT, ver LICENSE), copiado sin CDN.
+
+Único cambio respecto de la distribución oficial: se quitó la última línea
+«sourceMappingURL=...» de bootstrap.min.css y bootstrap.bundle.min.js, porque los
+archivos .map no se copian y el almacenamiento de estáticos de producción
+(CompressedManifestStaticFilesStorage) falla si un archivo referencia otro que no
+existe. Al actualizar Bootstrap, repetir el cambio (lo verifica
+tivoscanea/test_produccion.py::test_collectstatic_de_produccion).

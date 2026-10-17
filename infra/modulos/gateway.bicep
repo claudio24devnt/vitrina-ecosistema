@@ -11,7 +11,7 @@ param idSubredGateway string
 param hostApp string
 param nombreKeyVault string
 @description('URI del secreto del certificado en Key Vault, sin versión (se renueva solo).')
-param idSecretoCertificado string
+param uriCertificado string
 
 param capacidadMinima int = 1
 param capacidadMaxima int = 2
@@ -93,7 +93,7 @@ resource gateway 'Microsoft.Network/applicationGateways@2023-11-01' = {
       { name: 'https', properties: { port: 443 } }
     ]
     sslCertificates: [
-      { name: 'certificado', properties: { keyVaultSecretId: idSecretoCertificado } }
+      { name: 'certificado', properties: { keyVaultSecretId: uriCertificado } }
     ]
     backendAddressPools: [
       { name: 'app', properties: { backendAddresses: [ { fqdn: hostApp } ] } }

@@ -57,14 +57,20 @@ resource sitio 'Microsoft.Web/sites@2023-12-01' = {
       // Al arrancar, con los secretos reales ya resueltos: check de despliegue (bloquea
       // la SECRET_KEY del CI, tivoscanea.E001) y migraciones, porque la base es privada
       // y el runner de GitHub no llega a ella. Si algo falla, la instancia no arranca.
-      appCommandLine: 'python manage.py check --deploy --fail-level ERROR && python manage.py migrate --noinput && gunicorn tivoscanea.wsgi --bind=0.0.0.0:8000 --workers=2 --timeout=60'
+      // collectstatic también va aquí y no en la compilación (Oryx), donde las
+      // referencias a Key Vault podrían no estar resueltas todavía.
+      appCommandLine: 'python manage.py check --deploy --fail-level ERROR && python manage.py migrate --noinput && python manage.py collectstatic --noinput && gunicorn tivoscanea.wsgi --bind=0.0.0.0:8000 --workers=2 --timeout=60'
       ipSecurityRestrictionsDefaultAction: 'Deny'
       scmIpSecurityRestrictionsUseMain: false
       scmIpSecurityRestrictionsDefaultAction: 'Allow'
       appSettings: [
         { name: 'SCM_DO_BUILD_DURING_DEPLOYMENT', value: 'true' }
+        { name: 'DISABLE_COLLECTSTATIC', value: 'true' }
         { name: 'DJANGO_SECRET_KEY', value: '${referencia}django-secret-key)' }
         { name: 'DJANGO_DEBUG', value: 'False' }
+        { name: 'DJANGO_PRODUCCION', value: 'True' }
+        { name: 'DB_SSLMODE', value: 'require' }
+        { name: 'DB_CONN_MAX_AGE', value: '60' }
         // El gateway reenvía con el host *.azurewebsites.net: ése es el que ve Django.
         // El dominio público llega en el Origin del navegador y se acepta por CSRF.
         { name: 'DJANGO_ALLOWED_HOSTS', value: '${nombre}.azurewebsites.net' }

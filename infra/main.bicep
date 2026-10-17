@@ -120,7 +120,7 @@ module gateway 'modulos/gateway.bicep' = if (desplegarGateway) {
     idSubredGateway: red.outputs.idSubredGateway
     hostApp: app.outputs.hostPorDefecto
     nombreKeyVault: keyVault.outputs.nombre
-    idSecretoCertificado: '${keyVault.outputs.uri}secrets/${nombreCertificado}'
+    uriCertificado: '${keyVault.outputs.uri}secrets/${nombreCertificado}'
   }
 }
 

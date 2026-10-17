@@ -1,8 +1,10 @@
 # Infraestructura de TivoScanea en Azure (paquete 1.6)
 
 Infraestructura como código (Bicep) de la arquitectura del §5 del brief.
-**Todavía no se ha desplegado ni compilado contra Azure**: no hay suscripción.
-Antes del primer despliegue hay que correr `az bicep build` y `what-if` (abajo).
+**Todavía no se ha desplegado**: no hay suscripción. Compila y pasa el lint con
+Bicep CLI 0.48.1 (2026-10-17), lo que valida sintaxis y propiedades contra los
+esquemas de cada versión de API, pero no cuotas, nombres ocupados ni permisos:
+antes del primer despliegue hay que correr `what-if` (abajo).
 
 ## Qué se crea
 
@@ -109,10 +111,8 @@ lista `despliegue.yml`, y hacer merge a `main`.
 
 ## Pendiente
 
-- **Ajustes de Django para producción** (parte 2 de 1.6): `STATIC_ROOT` y
-  servir estáticos, `SECURE_PROXY_SSL_HEADER`, `CSRF_TRUSTED_ORIGINS` desde el
-  entorno, cookies seguras, HSTS, `gunicorn` en `requirements.txt`, y sacar
-  pytest/black/flake8 de las dependencias del servidor.
+- **HSTS con subdominios y preload** (`security.W005`/`W021`): se decide al
+  tener el dominio definitivo. Es lo único que `check --deploy` deja pendiente.
 - **Scheduler**: WebJobs en App Service Linux, un Container Apps Job, o una
   Function con temporizador. Cualquiera es un recurso más que el §5 no lista.
 - **Monitoreo**: Application Insights / Log Analytics no está en el §5.

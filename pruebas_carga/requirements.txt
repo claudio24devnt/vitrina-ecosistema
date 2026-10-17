@@ -1,0 +1,2 @@
+# Prueba de carga del punto de venta (§6). Aparte para no alargar el CI.
+locust==2.46.7
