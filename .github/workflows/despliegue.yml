@@ -41,7 +41,7 @@ jobs:
         # App Service instala requirements.txt al recibir el paquete (Oryx).
         run: >-
           zip -r paquete.zip . -x '.git/*' '.github/*' 'infra/*' 'pruebas_carga/*'
-          '*/__pycache__/*' '.env*' 'conftest.py' '*/test_*.py' '*/tests.py'
+          'webjobs/*' '*/__pycache__/*' '.env*' 'conftest.py' '*/test_*.py' '*/tests.py'
 
       - uses: azure/login@v2
         with:
@@ -53,3 +53,8 @@ jobs:
         with:
           app-name: ${{ vars.AZURE_WEBAPP_NAME }}
           package: paquete.zip
+
+      # Los WebJobs van aparte: la compilación comprime la app y App_Data no llega
+      # a wwwroot (webjobs/LEEME.md). Publicarlos de nuevo los reemplaza.
+      - name: Publicar WebJobs
+        run: python scripts/publicar_webjobs.py "${{ vars.AZURE_WEBAPP_NAME }}"

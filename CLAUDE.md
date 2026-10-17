@@ -528,9 +528,10 @@ años.
   - Corregido: `DEBUG` se leía como texto («False» era verdadero) desde 1.4.1.
   - Bootstrap sin las líneas `sourceMappingURL` (ver su `LEEME.txt`).
   - Scheduler: WebJobs del App Service (decidido 2026-10-17) en
-    `App_Data/jobs/triggered/` → `scripts/webjob.sh` → `manage.py`. Stock bajo a
+    `webjobs/` → `scripts/publicar_webjobs.py` (API de Kudu, tras cada despliegue;
+    Oryx comprime la app y `App_Data/` no llega) → `scripts/webjob.sh` → `manage.py`. Stock bajo a
     las 06:30 y aviso de cierre a las 00:15, ambos diarios (idempotentes), en hora
-    de Santiago. Ver `App_Data/LEEME.md`.
+    de Santiago. Ver `webjobs/LEEME.md`.
   - Pendiente: monitoreo, HSTS según dominio, verificar los WebJobs en Azure.
 - Montos en pantalla con el filtro `pesos` (`{% load formato %}`).
 - Textos en español de Chile con tuteo («Ingresa», «Escribe»), sin voseo.
@@ -543,8 +544,8 @@ años.
 .\.venv\Scripts\Activate.ps1
 python manage.py runserver
 python -m pytest
-black apps tivoscanea manage.py conftest.py pruebas_carga
-flake8 apps tivoscanea manage.py conftest.py pruebas_carga
+black apps tivoscanea manage.py conftest.py pruebas_carga scripts
+flake8 apps tivoscanea manage.py conftest.py pruebas_carga scripts
 python manage.py cargar_datos_ficticios --limpiar   # datos de demostración
 python manage.py alertar_stock_bajo; python manage.py avisar_cierre_mes
 python manage.py makemigrations && python manage.py migrate

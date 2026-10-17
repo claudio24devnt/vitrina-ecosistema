@@ -4,19 +4,21 @@ válido, llama a un comando de manage.py que existe, y su script es ejecutable y
 finales de línea LF (con CRLF, bash en Linux falla con «$'\\r': command not found»).
 """
 
+import io
 import json
 import os
 import re
 import shutil
 import subprocess
 import sys
+import zipfile
 from pathlib import Path
 
 import pytest
 from django.core.management import get_commands
 
 RAIZ = Path(__file__).resolve().parent.parent
-JOBS = RAIZ / "App_Data" / "jobs" / "triggered"
+JOBS = RAIZ / "webjobs"
 LANZADOR = RAIZ / "scripts" / "webjob.sh"
 ESPERADOS = {
     "alertar-stock-bajo": "alertar_stock_bajo",
@@ -41,6 +43,30 @@ def test_job_bien_formado(job, comando):
     assert run.startswith(b"#!/bin/bash\n")
     assert run.decode().split()[-1] == comando
     assert comando in get_commands()
+
+
+def _publicador():
+    sys.path.insert(0, str(RAIZ / "scripts"))
+    try:
+        import publicar_webjobs
+    finally:
+        sys.path.pop(0)
+    return publicar_webjobs
+
+
+def test_publicador_encuentra_los_jobs():
+    assert [d.name for d in _publicador().jobs()] == sorted(ESPERADOS)
+
+
+@pytest.mark.parametrize("job", ESPERADOS)
+def test_zip_del_job_es_autocontenido(job):
+    # Se publica aparte (scripts/publicar_webjobs.py): no puede depender de wwwroot.
+    zip_ = zipfile.ZipFile(io.BytesIO(_publicador().empaquetar(JOBS / job)))
+    assert sorted(zip_.namelist()) == ["run.sh", "settings.job", "webjob.sh"]
+    for nombre in ("run.sh", "webjob.sh"):
+        assert b"\r" not in zip_.read(nombre)
+        assert zip_.getinfo(nombre).external_attr >> 16 == 0o100755
+    assert b'$(dirname "$0")/webjob.sh' in zip_.read("run.sh")
 
 
 def test_scripts_ejecutables_y_con_lf_en_git():

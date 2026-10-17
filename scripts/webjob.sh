@@ -1,7 +1,7 @@
 #!/bin/bash
 # Ejecuta un comando de manage.py desde un WebJob de App Service Linux (1.6).
-# Lo llaman los run.sh de App_Data/jobs/triggered/*. El WebJob corre en el mismo
-# contenedor que la aplicación, con sus variables de entorno.
+# Va dentro del zip de cada WebJob, junto a su run.sh (scripts/publicar_webjobs.py).
+# El WebJob corre en el mismo contenedor que la aplicación, con sus variables.
 set -euo pipefail
 
 # Oryx deja la aplicación y su entorno virtual (antenv) en /home/site/wwwroot, o,

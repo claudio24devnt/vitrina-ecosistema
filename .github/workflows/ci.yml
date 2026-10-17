@@ -57,10 +57,10 @@ jobs:
         run: pip install -r requirements-dev.txt
 
       - name: Formato (black)
-        run: black --check apps tivoscanea manage.py conftest.py pruebas_carga
+        run: black --check apps tivoscanea manage.py conftest.py pruebas_carga scripts
 
       - name: Estilo (flake8)
-        run: flake8 apps tivoscanea manage.py conftest.py pruebas_carga
+        run: flake8 apps tivoscanea manage.py conftest.py pruebas_carga scripts
 
       - name: Migraciones al día
         run: python manage.py makemigrations --check --dry-run

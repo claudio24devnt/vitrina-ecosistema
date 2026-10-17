@@ -69,9 +69,11 @@ almacén) y en la plataforma (HTTPS obligatorio, TLS 1.2, sin FTP).
 2. **Migraciones, `check --deploy` y `collectstatic` al arrancar** la instancia: la
    base es privada y el runner de GitHub no llega a ella. Si fallan, la instancia
    no arranca.
-3. **Scheduler: WebJobs del mismo App Service**. Horarios en `App_Data/LEEME.md`.
-   **Verificar en el primer despliegue** que el job encuentra el entorno virtual:
-   ejecutarlo a mano desde el portal (WebJobs → Run) y revisar su log.
+3. **Scheduler: WebJobs del mismo App Service**, publicados aparte con
+   `scripts/publicar_webjobs.py` (la compilación comprime la app y `App_Data/` no
+   llega a `wwwroot`). Horarios y detalle en `webjobs/LEEME.md`. Verificado en
+   Azure el 2026-10-17: el job encuentra la app en `/tmp/<id>/` y termina en
+   `Success`.
 
 ## Despliegue paso a paso
 
