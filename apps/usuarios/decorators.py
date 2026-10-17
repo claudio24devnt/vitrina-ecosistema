@@ -21,3 +21,16 @@ def rol_requerido(*roles):
         return _envuelta
 
     return decorador
+
+
+def operador_requerido(view_func):
+    """Sólo el operador de la plataforma (is_superuser): da de alta almacenes."""
+
+    @wraps(view_func)
+    @login_required
+    def _envuelta(request, *args, **kwargs):
+        if not request.user.is_superuser:
+            raise PermissionDenied("Esta sección es sólo para el operador de TivoScanea.")
+        return view_func(request, *args, **kwargs)
+
+    return _envuelta
