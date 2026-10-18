@@ -540,6 +540,14 @@ años.
   «12345678-9». El operador vive en un almacén de plan `operacion` (el modelo exige
   `id_almacen`), excluido de la lista; lo crea `manage.py crear_operador`, que pide
   la contraseña. No hay registro autoservicio.
+- **Indicadores de §7 (2026-10-18):** `indicadores()` en `apps/reporteria/servicios.py`
+  y `/reportes/indicadores/?mes=` (sólo admin; no registra `acceso_reporte`). Tiempo de
+  registro = mediana con `PERCENTILE_CONT` (incluye anuladas); quiebres = llegada a 0 de
+  la suma acumulada `SUM(...) OVER (PARTITION BY producto)` con `LEAD` para la
+  reposición (el filtro por fecha va en Python sobre las filas en 0); exactitud =
+  `ajustes_de_exactitud()`; uso = `acceso_reporte`. Línea base: «Por medir en el
+  levantamiento» (`LINEA_BASE_PENDIENTE`). Limitación: un producto de alta rápida cuenta
+  un quiebre tras su primera venta.
 - **`docs/GUIA_TIVOSCANEA.md`**: guía de la aplicación para Claude Desktop (sin
   acceso al código). **Al cambiar un comportamiento visible, actualizarla.**
 - Prueba de carga en Azure: `manage.py preparar_almacen_carga` (sólo almacenes de plan

@@ -1,0 +1,82 @@
+{% extends "base.html" %}
+{% load formato %}
+
+{% block titulo %}Indicadores de {{ ind.nombre }} — TivoScanea{% endblock %}
+
+{% block contenido %}
+<div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
+    <h1 class="h3 m-0">Indicadores de {{ ind.nombre }}</h1>
+    <form method="get" class="d-flex gap-2">
+        <select name="mes" class="form-select" aria-label="Mes">
+            {% for mes, nombre in meses %}
+            <option value="{{ mes|date:'Y-m' }}" {% if mes == ind.mes %}selected{% endif %}>{{ nombre }}</option>
+            {% endfor %}
+        </select>
+        <button type="submit" class="btn btn-outline-secondary">Ver</button>
+    </form>
+</div>
+
+<p class="text-secondary">Muestran cómo cambia el trabajo del almacén con TivoScanea. El valor «antes» se mide con el almacén al empezar el piloto; mientras tanto no se muestra ningún número.</p>
+
+{% if ind.mes_parcial %}
+<div class="alert alert-secondary py-2">
+    Cubre del {{ ind.desde|date:"d-m-Y" }} al {{ ind.ultimo_dia|date:"d-m-Y" }}{% if ind.en_curso %}: el mes todavía no termina{% else %}: el almacén empezó a registrar en TivoScanea a mitad de mes{% endif %}.
+</div>
+{% endif %}
+
+<div class="row g-3">
+    <section class="col-md-6">
+        <div class="card h-100"><div class="card-body">
+            <h2 class="h5">Tiempo para registrar una venta</h2>
+            {% if ind.tiempo.medidas %}
+            <div class="cifra-grande">{{ ind.tiempo.mediana|duracion }}</div>
+            <p class="small mb-2">Tiempo típico (mediana) desde el primer producto escaneado hasta confirmar, en {{ ind.tiempo.medidas }} venta{{ ind.tiempo.medidas|pluralize }}.{% if ind.tiempo.sin_medir %} {{ ind.tiempo.sin_medir }} sin hora de apertura válida no se cuenta{{ ind.tiempo.sin_medir|pluralize:"n" }}.{% endif %}</p>
+            {% elif ind.tiempo.sin_medir %}
+            <p class="mb-2">Ninguna venta del período tiene hora de apertura válida, así que no se puede medir.</p>
+            {% else %}
+            <p class="mb-2">No hay ventas en el período.</p>
+            {% endif %}
+            <p class="small text-secondary mb-0">Antes de TivoScanea: {{ ind.linea_base }}</p>
+        </div></div>
+    </section>
+
+    <section class="col-md-6">
+        <div class="card h-100"><div class="card-body">
+            <h2 class="h5">Productos que se quedaron sin stock</h2>
+            {% if ind.hay_movimientos or ind.quiebres.quiebres %}
+            <div class="cifra-grande">{{ ind.quiebres.quiebres }}</div>
+            <p class="small mb-2">
+                Veces que un producto llegó a 0 según el sistema{% if ind.quiebres.quiebres %}, en {{ ind.quiebres.productos }} producto{{ ind.quiebres.productos|pluralize }}{% endif %}.
+                {% if ind.quiebres.mediana_reposicion %}Tiempo típico hasta reponer: {{ ind.quiebres.mediana_reposicion|duracion }}.{% endif %}
+                {% if ind.quiebres.sin_reponer %}{{ ind.quiebres.sin_reponer }} todavía sin reponer.{% endif %}
+            </p>
+            {% else %}
+            <p class="mb-2">No hubo movimientos de stock en el período.</p>
+            {% endif %}
+            <p class="small text-secondary mb-0">Antes de TivoScanea: {{ ind.linea_base }}</p>
+        </div></div>
+    </section>
+
+    <section class="col-md-6">
+        <div class="card h-100"><div class="card-body">
+            <h2 class="h5">Diferencias de inventario</h2>
+            {% if ind.hay_movimientos %}
+            <div class="cifra-grande">{{ ind.exactitud.ajustes }}</div>
+            <p class="small mb-2">Ajustes de stock{% if ind.exactitud.ajustes %}: {{ ind.exactitud.unidades }} unidad{{ ind.exactitud.unidades|pluralize:"es" }} en {{ ind.exactitud.productos }} producto{{ ind.exactitud.productos|pluralize }}{% endif %}. Mientras menos, más se parece el sistema a lo que hay en la repisa. No cuenta los productos dados de alta en la caja.</p>
+            {% else %}
+            <p class="mb-2">No hubo movimientos de stock en el período.</p>
+            {% endif %}
+            <p class="small text-secondary mb-0">Antes de TivoScanea: {{ ind.linea_base }}</p>
+        </div></div>
+    </section>
+
+    <section class="col-md-6">
+        <div class="card h-100"><div class="card-body">
+            <h2 class="h5">Uso del reporte mensual</h2>
+            <div class="cifra-grande">{{ ind.uso.consultas }}</div>
+            <p class="small mb-2">Veces que se abrió el <a href="{% url 'reporteria:reporte_mensual' %}">reporte mensual</a>{% if ind.uso.consultas %}, en {{ ind.uso.dias }} día{{ ind.uso.dias|pluralize }} distinto{{ ind.uso.dias|pluralize }}{% endif %}. Ver esta pantalla no cuenta.</p>
+            <p class="small text-secondary mb-0">Antes de TivoScanea: {{ ind.linea_base }}</p>
+        </div></div>
+    </section>
+</div>
+{% endblock %}

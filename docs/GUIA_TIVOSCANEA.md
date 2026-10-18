@@ -69,6 +69,7 @@ Todas usan Bootstrap 5 y funcionan en computador y celular. Menú superior verde
 | Categorías | `/productos/categorias/` | Crear categorías. |
 | Vendedores | `/cuentas/vendedores/` | Crear vendedores (correo único en toda la plataforma). |
 | Reporte | `/reportes/mensual/?mes=AAAA-MM` | Reporte mensual (ver §4.4). |
+| Indicadores | `/reportes/indicadores/?mes=AAAA-MM` | Los cuatro indicadores del piloto (ver §4.7). Por omisión, el mes en curso. |
 
 ### Sólo operador
 
@@ -139,6 +140,23 @@ Tareas programadas en Azure (WebJobs), hora de Chile:
 El administrador crea vendedores con nombre, correo y contraseña (con las reglas de
 seguridad de Django). Si el correo ya existe en cualquier almacén, lo rechaza.
 
+### 4.7 Indicadores
+Miden el efecto de TivoScanea en el almacén piloto. Cada tarjeta muestra el valor del
+mes y, como «Antes de TivoScanea», el texto **«Por medir en el levantamiento»**: la
+línea base se mide con el almacén al empezar el piloto y nunca se muestra un número
+inventado ni un cero en su lugar.
+- **Tiempo para registrar una venta:** mediana de (confirmación − apertura de la
+  venta), incluidas las anuladas. Una venta con apertura de más de 12 h atrás no se mide.
+- **Productos que se quedaron sin stock:** veces que el stock de un producto llegó a
+  0 según los movimientos, cuántos productos, tiempo típico hasta reponer y cuántos
+  siguen sin reponer.
+- **Diferencias de inventario:** ajustes de stock del mes, unidades y productos; no
+  cuenta los de «Alta rápida en caja».
+- **Uso del reporte mensual:** cuántas veces se abrió y en cuántos días distintos.
+  Abrir la pantalla de indicadores no cuenta.
+
+Si no hubo ventas o movimientos en el mes, la tarjeta lo dice en vez de mostrar cero.
+
 ---
 
 ## 5. Reglas que no se cambian sin decidirlo con el autor
@@ -192,6 +210,10 @@ seguridad de Django). Si el correo ya existe en cualquier almacén, lo rechaza.
   01:30 cuenta para el día calendario en que ocurrió).
 - Magallanes (sin horario de invierno) queda desfasado una hora.
 - Sin monitoreo automático: si la app falla de noche, nadie recibe un aviso.
+- Un producto dado de alta en la caja queda en 0 después de su primera venta y cuenta
+  como «se quedó sin stock» (nunca tuvo stock registrado).
+- Un producto creado desde el admin de Django con stock, sin movimiento de entrada,
+  descuadra su serie de quiebres (todo lo demás pasa por los servicios).
 - No hay pantalla para «productos por revisar» de la alta rápida (se identifican por
   el motivo del ajuste).
 

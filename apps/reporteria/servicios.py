@@ -9,10 +9,37 @@ filas ya agregadas (a lo más diez productos, siete días, las franjas y unos me
 from dataclasses import dataclass, field
 from datetime import date, datetime, timedelta
 from decimal import ROUND_HALF_UP, Decimal
+from statistics import median
 
 from django.db import IntegrityError, transaction
-from django.db.models import Count, F, Func, Min, OuterRef, Subquery, Sum, Window
-from django.db.models.functions import ExtractIsoWeekDay, Lag, Rank, TruncMonth, TruncTime
+from django.db.models import (
+    Aggregate,
+    Case,
+    Count,
+    DurationField,
+    ExpressionWrapper,
+    F,
+    Func,
+    IntegerField,
+    Min,
+    OuterRef,
+    Q,
+    Subquery,
+    Sum,
+    When,
+    Window,
+)
+from django.db.models.functions import (
+    Abs,
+    Coalesce,
+    ExtractIsoWeekDay,
+    Lag,
+    Lead,
+    Rank,
+    TruncDate,
+    TruncMonth,
+    TruncTime,
+)
 from django.utils import timezone
 
 from apps.almacenes.errores import ReglaDeNegocioError
@@ -538,3 +565,149 @@ def marcar_alerta_vista(*, almacen, alerta, usuario):
     else:
         pendientes = pendientes.filter(pk=alerta.pk)
     return pendientes.update(fecha_vista=timezone.now(), id_usuario_vista=usuario)
+
+
+# --- Indicadores (§7) ----------------------------------------------------------------
+
+# Sin línea base medida no se muestra un número (§2.3): se mide con el almacén piloto.
+LINEA_BASE_PENDIENTE = "Por medir en el levantamiento"
+
+
+class Mediana(Aggregate):
+    """`PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY expr)`: la mediana, en PostgreSQL."""
+
+    function = "PERCENTILE_CONT"
+    template = "%(function)s(0.5) WITHIN GROUP (ORDER BY %(expressions)s)"
+
+
+def tiempo_de_registro(almacen, desde, hasta):
+    """
+    Tiempo de registro de venta: fecha_hora (confirmación) − hora_inicio (apertura).
+    Cuenta también las anuladas: el tiempo en el mesón ya ocurrió. Las ventas sin
+    hora de inicio (descartada por inválida) no se miden y se informan aparte.
+    """
+    ventas = Venta.objects.del_almacen(almacen).filter(
+        fecha_hora__gte=inicio_del_dia(desde), fecha_hora__lt=inicio_del_dia(hasta)
+    )
+    return ventas.aggregate(
+        medidas=Count("pk", filter=Q(hora_inicio__isnull=False)),
+        sin_medir=Count("pk", filter=Q(hora_inicio__isnull=True)),
+        mediana=Mediana(
+            ExpressionWrapper(
+                F("fecha_hora") - F("hora_inicio"), output_field=DurationField()
+            ),
+            output_field=DurationField(),
+        ),
+    )
+
+
+def quiebres_de_stock(almacen, desde, hasta):
+    """
+    Quiebres de stock: cada vez que la serie de movimiento_stock de un producto llega
+    a 0, y cuánto tarda en volver a subir (el movimiento siguiente siempre es un alza,
+    porque el stock nunca es negativo). El stock tras cada movimiento es la suma
+    acumulada por producto (SUM(...) OVER); se calcula sobre toda la historia, así
+    que el filtro por fecha se aplica después, en Python, sobre las pocas filas en 0.
+    """
+    delta = Case(
+        When(tipo=TipoMovimiento.SALIDA, then=-F("cantidad")),
+        default=F("cantidad"),
+        output_field=IntegerField(),
+    )
+    por_producto = {
+        "partition_by": F("id_producto"),
+        "order_by": (F("fecha_hora").asc(), F("id_movimiento").asc()),
+    }
+    en_cero = (
+        MovimientoStock.objects.del_almacen(almacen)
+        .annotate(
+            stock_tras=Window(Sum(delta), **por_producto),
+            siguiente=Window(Lead("fecha_hora"), **por_producto),
+        )
+        .filter(stock_tras=0)
+        .values("id_producto", "fecha_hora", "siguiente")
+    )
+    desde, hasta = inicio_del_dia(desde), inicio_del_dia(hasta)
+    quiebres = [fila for fila in en_cero if desde <= fila["fecha_hora"] < hasta]
+    esperas = [f["siguiente"] - f["fecha_hora"] for f in quiebres if f["siguiente"]]
+    return {
+        "quiebres": len(quiebres),
+        "productos": len({fila["id_producto"] for fila in quiebres}),
+        "sin_reponer": len(quiebres) - len(esperas),
+        "mediana_reposicion": median(esperas) if esperas else None,
+    }
+
+
+def exactitud_de_inventario(almacen, desde, hasta):
+    """Ajustes del período que cuentan para la exactitud (sin «Alta rápida en caja»)."""
+    return (
+        ajustes_de_exactitud(almacen)
+        .filter(fecha_hora__gte=inicio_del_dia(desde), fecha_hora__lt=inicio_del_dia(hasta))
+        .aggregate(
+            ajustes=Count("pk"),
+            unidades=Coalesce(Sum(Abs("cantidad")), 0),
+            productos=Count("id_producto", distinct=True),
+        )
+    )
+
+
+def uso_de_reporteria(almacen, desde, hasta):
+    """Consultas del reporte mensual en el período (tabla acceso_reporte)."""
+    return (
+        AccesoReporte.objects.del_almacen(almacen)
+        .filter(fecha_hora__gte=inicio_del_dia(desde), fecha_hora__lt=inicio_del_dia(hasta))
+        .aggregate(
+            consultas=Count("pk"),
+            dias=Count(TruncDate("fecha_hora", tzinfo=ZONA_HORARIA_ALMACEN), distinct=True),
+        )
+    )
+
+
+@dataclass
+class Indicadores:
+    mes: date
+    nombre: str
+    desde: date
+    hasta: date
+    en_curso: bool
+    hay_movimientos: bool
+    tiempo: dict
+    quiebres: dict
+    exactitud: dict
+    uso: dict
+    linea_base: str = LINEA_BASE_PENDIENTE
+
+    @property
+    def ultimo_dia(self):
+        return self.hasta - timedelta(days=1)
+
+    @property
+    def mes_parcial(self):
+        return self.desde != self.mes or self.hasta != mes_siguiente(self.mes)
+
+
+def indicadores(almacen, mes, hoy=None):
+    """
+    Los cuatro indicadores de §7 en `mes`, calculados al vuelo. Ver los indicadores no
+    cuenta como uso de la reportería (no registra acceso_reporte).
+    """
+    hoy = hoy or hoy_local()
+    mes = primer_dia(mes)
+    if mes > primer_dia(hoy):
+        raise ReglaDeNegocioError(f"{nombre_mes(mes).capitalize()} todavía no empieza.")
+    desde = max(mes, inicio_de_registros(almacen))
+    hasta = max(desde, min(mes_siguiente(mes), hoy + timedelta(days=1)))
+    return Indicadores(
+        mes=mes,
+        nombre=nombre_mes(mes),
+        desde=desde,
+        hasta=hasta,
+        en_curso=mes_siguiente(mes) > hoy,
+        hay_movimientos=MovimientoStock.objects.del_almacen(almacen)
+        .filter(fecha_hora__gte=inicio_del_dia(desde), fecha_hora__lt=inicio_del_dia(hasta))
+        .exists(),
+        tiempo=tiempo_de_registro(almacen, desde, hasta),
+        quiebres=quiebres_de_stock(almacen, desde, hasta),
+        exactitud=exactitud_de_inventario(almacen, desde, hasta),
+        uso=uso_de_reporteria(almacen, desde, hasta),
+    )
