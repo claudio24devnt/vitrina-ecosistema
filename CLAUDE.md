@@ -548,6 +548,10 @@ años.
   `ajustes_de_exactitud()`; uso = `acceso_reporte`. Línea base: «Por medir en el
   levantamiento» (`LINEA_BASE_PENDIENTE`). Limitación: un producto de alta rápida cuenta
   un quiebre tras su primera venta.
+- **Cobertura (2026-10-18):** 96,9 % en servicios y modelos. `[coverage:*]` en
+  `setup.cfg` mide sólo `servicios.py`, `models.py`, `aislamiento.py` y `errores.py`, con
+  `fail_under = 80`; el CI corre `pytest --cov` y falla si baja.
+- **Restauración del respaldo probada (2026-10-18):** 9 min 17 s; ver `infra/README.md`.
 - **`docs/GUIA_TIVOSCANEA.md`**: guía de la aplicación para Claude Desktop (sin
   acceso al código). **Al cambiar un comportamiento visible, actualizarla.**
 - Prueba de carga en Azure: `manage.py preparar_almacen_carga` (sólo almacenes de plan
@@ -563,6 +567,7 @@ años.
 .\.venv\Scripts\Activate.ps1
 python manage.py runserver
 python -m pytest
+python -m pytest --cov            # cobertura de servicios y modelos (mínimo 80 %)
 black apps tivoscanea manage.py conftest.py pruebas_carga scripts
 flake8 apps tivoscanea manage.py conftest.py pruebas_carga scripts
 python manage.py cargar_datos_ficticios --limpiar   # datos de demostración
