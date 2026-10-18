@@ -32,6 +32,7 @@ Internet ──HTTPS──▶ App Service B1 Linux (Python 3.12, identidad admin
 | `modulos/enlace-tls.bicep` | Activa TLS en el dominio propio |
 | `modulos/acceso-keyvault.bicep` | Rol de lectura de secretos |
 | `modulos/oidc.bicep` | Identidad federada de GitHub Actions |
+| `modulos/monitoreo.bicep` | Alertas por correo (opcional: sólo con `TIVOSCANEA_CORREO_ALERTAS`) |
 | `../.github/workflows/despliegue.yml` | Despliegue tras el CI en verde sobre `main` |
 
 ## Costo esperado
@@ -41,6 +42,7 @@ Internet ──HTTPS──▶ App Service B1 Linux (Python 3.12, identidad admin
 | App Service B1 | ~13 |
 | PostgreSQL B1ms, 32 GB | 0 los primeros 12 meses (oferta gratuita, 750 h/mes) |
 | Key Vault, VNet, DNS privado | < 1 |
+| 4 alertas de métricas (correos gratis) | ~0,40 |
 | **Total** | **~13–15** |
 
 Verificar en la calculadora y en «Cost Management» tras el primer día. El disco de
@@ -115,6 +117,31 @@ Primer operador (una vez): `az webapp ssh -g rg-tivoscanea -n <app>`, y dentro
 --nombre "..." --email ... --rut ...` (pide la contraseña sin mostrarla). Con él
 se entra a «Almacenes» y se da de alta cada almacén con su administrador.
 
+### Monitoreo (desplegado el 2026-10-18)
+
+Cuatro alertas de métricas que Azure ya recoge (sin Application Insights ni pruebas
+de disponibilidad, que cobran por ejecución). Avisan por correo al dispararse y al
+resolverse:
+
+| Alerta | Señal | Se dispara si |
+|---|---|---|
+| `app-sin-salud` (sev. 1) | `HealthCheckStatus` de `/salud/` | promedio < 100 en 15 min |
+| `app-errores-5xx` (sev. 2) | `Http5xx` | más de 5 en 15 min |
+| `bd-caida` (sev. 0) | `is_db_alive` | la base no responde en 15 min |
+| `bd-disco` (sev. 2) | `storage_percent` | disco sobre 80 % (no crece solo) |
+
+Se despliega solo, sin la clave de la base (usa recursos existentes):
+
+```powershell
+az deployment group create -g rg-tivoscanea -n monitoreo -f infra/modulos/monitoreo.bicep `
+  -p prefijo=tivoscanea nombreApp=<app> nombrePostgres=<psql> correoAlertas=<correo>
+```
+
+o junto con todo, con `$env:TIVOSCANEA_CORREO_ALERTAS` al desplegar `main.bicep` (si
+se despliega `main.bicep` sin esa variable, las alertas existentes no se borran).
+Limitación: si la aplicación está tan caída que no publica métricas, la alerta de
+salud no tiene datos y no se dispara; cubre caídas de la app con el plan en pie.
+
 ### Fase 2 (opcional): dominio propio
 
 1. En el DNS del dominio: `CNAME app → <salida hostApp>` y
@@ -156,4 +183,5 @@ restaurado (no se alcanzó a verificar su hora antes de borrar la copia).
 ## Pendiente
 
 - **HSTS con subdominios y preload** (`security.W005`/`W021`): al tener dominio.
-- **Monitoreo**: Application Insights no está en el §5.
+- **Monitoreo externo**: una prueba de disponibilidad desde fuera de Azure (p. ej.
+  un servicio gratuito de ping) cubriría la caída total que las métricas no ven.

@@ -209,7 +209,9 @@ Si no hubo ventas o movimientos en el mes, la tarjeta lo dice en vez de mostrar 
 - Un almacén que cierra después de medianoche queda mal modelado (la venta de la
   01:30 cuenta para el día calendario en que ocurrió).
 - Magallanes (sin horario de invierno) queda desfasado una hora.
-- Sin monitoreo automático: si la app falla de noche, nadie recibe un aviso.
+- El monitoreo avisa por correo al operador si la app deja de responder, si hay
+  errores del servidor, si la base de datos cae o si el disco pasa el 80 %. No hay
+  aviso desde fuera de Azure.
 - Un producto dado de alta en la caja queda en 0 después de su primera venta y cuenta
   como «se quedó sin stock» (nunca tuvo stock registrado).
 - Un producto creado desde el admin de Django con stock, sin movimiento de entrada,

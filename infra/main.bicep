@@ -30,6 +30,9 @@ param repositorio string
 @description('IP pública de quien administra, para cargar secretos en Key Vault. Vacía = cerrado.')
 param ipAdministrador string = ''
 
+@description('Correo para las alertas de monitoreo. Vacío = sin monitoreo.')
+param correoAlertas string = ''
+
 param usuarioBaseDatos string = 'tivoscanea_admin'
 
 @secure()
@@ -116,6 +119,17 @@ module oidc 'modulos/oidc.bicep' = {
     etiquetas: etiquetas
     repositorio: repositorio
     nombreApp: app.outputs.nombre
+  }
+}
+
+module monitoreo 'modulos/monitoreo.bicep' = if (!empty(correoAlertas)) {
+  name: 'monitoreo'
+  params: {
+    prefijo: prefijo
+    nombreApp: app.outputs.nombre
+    nombrePostgres: nombrePostgres
+    correoAlertas: correoAlertas
+    etiquetas: etiquetas
   }
 }
 

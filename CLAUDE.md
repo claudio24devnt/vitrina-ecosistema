@@ -532,7 +532,9 @@ años.
     Oryx comprime la app y `App_Data/` no llega) → `scripts/webjob.sh` → `manage.py`. Stock bajo a
     las 06:30 y aviso de cierre a las 00:15, ambos diarios (idempotentes), en hora
     de Santiago. Ver `webjobs/LEEME.md`.
-  - Pendiente: monitoreo, HSTS según dominio, verificar los WebJobs en Azure.
+  - Monitoreo (2026-10-18): `infra/modulos/monitoreo.bicep`, cuatro alertas de métricas
+    por correo (salud, 5xx, base caída, disco > 80 %), ~USD 0,40/mes; desplegado.
+  - Pendiente: HSTS según dominio.
 - **Operador de la plataforma (2026-10-17, no estaba en el brief):** alta de
   almacenes en `/plataforma/almacenes/`, sólo para `is_superuser`
   (`operador_requerido`). `alta_almacen()` crea almacén, franjas y primer
