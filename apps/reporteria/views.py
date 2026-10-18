@@ -10,6 +10,7 @@ from .models import Alerta
 from .servicios import (
     consultar_reporte_mensual,
     hoy_local,
+    indicadores,
     leer_mes,
     marcar_alerta_vista,
     mes_anterior,
@@ -40,6 +41,27 @@ def reporte_mensual(request):
         "reporteria/reporte_mensual.html",
         {
             "reporte": reporte,
+            "meses": [(m, nombre_mes(m).capitalize()) for m in meses],
+        },
+    )
+
+
+@solo_admin
+def indicadores_del_mes(request):
+    """Indicadores de §7 para el piloto. Por omisión, el mes en curso."""
+    hoy = hoy_local()
+    meses = meses_disponibles(request.almacen, hoy)
+    mes = leer_mes(request.GET.get("mes")) or primer_dia(hoy)
+    try:
+        resultado = indicadores(request.almacen, mes, hoy)
+    except ReglaDeNegocioError as error:
+        messages.error(request, str(error))
+        return redirect("reporteria:indicadores")
+    return render(
+        request,
+        "reporteria/indicadores.html",
+        {
+            "ind": resultado,
             "meses": [(m, nombre_mes(m).capitalize()) for m in meses],
         },
     )
