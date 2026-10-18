@@ -124,9 +124,36 @@ se entra a «Almacenes» y se da de alta cada almacén con su administrador.
    `$env:TIVOSCANEA_DOMINIO = "app.tivoscanea.cl"` y
    `$env:TIVOSCANEA_ENLAZAR_DOMINIO = "true"`.
 
+## Restauración del respaldo (probada el 2026-10-18)
+
+Restauración a un punto en el tiempo hacia un servidor **nuevo** (producción no se
+toca), en la misma subred delegada y zona DNS privada:
+
+```powershell
+az postgres flexible-server restore -g rg-tivoscanea --name psql-tivoscanea-restaurado `
+  --source-server psql-tivoscanea-nppckr --restore-time <AAAA-MM-DDTHH:MM:SSZ>
+```
+
+| Hito (UTC) | Hora |
+|---|---|
+| Punto restaurado | 13:22:53 |
+| Inicio de la restauración | 13:27:53 |
+| Servidor restaurado listo | 13:37:10 (**9 min 17 s**) |
+
+Verificación desde el SSH del App Service (la base no tiene IP pública), contando
+filas con `DB_HOST` apuntando a cada servidor: las ocho tablas del dominio coinciden,
+salvo `acceso_reporte` (1 en producción, 0 en la copia), que corresponde a una consulta
+del reporte hecha durante la revisión de esa mañana, presumiblemente posterior al punto
+restaurado (no se alcanzó a verificar su hora antes de borrar la copia).
+
+- **RTO (§7: 4 h):** 9 min 17 s de restauración; con el cambio de `DB_HOST` en el App
+  Service y su reinicio, el total queda bajo los 30 min.
+- **RPO (§7: 24 h):** la restauración a un punto en el tiempo admite cualquier minuto
+  de los últimos 7 días; la pérdida máxima es del orden de minutos.
+- El servidor restaurado se borra al terminar: cobra aparte (no entra en la oferta
+  gratuita de 750 h).
+
 ## Pendiente
 
 - **HSTS con subdominios y preload** (`security.W005`/`W021`): al tener dominio.
 - **Monitoreo**: Application Insights no está en el §5.
-- **Restauración probada**: el RTO de 4 h (§7) exige ensayar una restauración
-  del respaldo de PostgreSQL al menos una vez.
