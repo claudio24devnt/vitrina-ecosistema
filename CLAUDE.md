@@ -583,6 +583,18 @@ años.
   quién vendió/anuló no se pierde); con historial se ofrece `cambiar_estado_vendedor()`
   (`is_active`, campo de Django, sin cambio de modelo). Rutas
   `/cuentas/vendedores/<id>/eliminar/` (confirmación) y `.../estado/` (sólo POST).
+- **Límite de ingreso (2026-11-14, OWASP A07):** `IngresoForm` (`apps/usuarios/forms.py`) con
+  `ingreso_bloqueado`/`registrar_ingreso_fallido`/`limpiar_ingresos_fallidos` en
+  `apps/usuarios/servicios.py`: 5 fallos por correo o 20 por IP en 15 min. IP = última de
+  X-Forwarded-For (`ip_del_cliente`). Caché por proceso; `conftest.cache_limpia` la vacía en
+  cada prueba. Bloqueado no calcula el hash (ahorra ~3 s de CPU del B1).
+- **Rendimiento (2026-11-14):** inventario paginado de a 50 (`PRODUCTOS_POR_PAGINA`); «Ventas
+  del día» filtra por rango con `inicio_del_dia()` (usa `ix_venta_fecha`; antes
+  `fecha_hora__date`, sin índice). El reporte mensual tarda ~24 ms local y ~0,2 s en Azure
+  estable: los 2,7 s vistos fueron durante un reinicio.
+- **Presentación 15/12/2026 19:30:** `docs/PLAN_PRESENTACION.md` (congelamiento desde el 13/12,
+  plan B `scripts/demo_local.ps1`, `scripts/verificar_produccion.py`, presupuesto USD 20/mes
+  `infra/modulos/presupuesto.bicep`, desplegado).
 - **Venta por peso (jamón, queso a granel): v2** (decidido 2026-11-14). Exige cambiar
   el modelo (unidad de venta en `producto`, gramos en detalle/movimiento/stock) y separar
   unidades de kilos en el reporte. Ojo: los códigos de la demo empiezan con `2000…`,

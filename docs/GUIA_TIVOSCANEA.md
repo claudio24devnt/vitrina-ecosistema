@@ -51,14 +51,14 @@ Todas usan Bootstrap 5 y funcionan en computador y celular. Menú superior verde
 
 | Pantalla | Ruta | Qué hace |
 |---|---|---|
-| Ingresar | `/cuentas/login/` | Correo y contraseña. Enlace «¿Olvidaste tu contraseña?» (ver §4.8). |
+| Ingresar | `/cuentas/login/` | Correo y contraseña. Enlace «¿Olvidaste tu contraseña?» (ver §4.8). Tras 5 intentos fallidos con un correo (o 20 desde una misma conexión) se bloquea 15 minutos. |
 | ¿Olvidaste tu contraseña? | `/cuentas/recuperar/` | Sin sesión. Con correo configurado, envía un enlace; si no, explica a quién pedir una contraseña nueva. |
 | Mi contraseña | `/cuentas/contrasena/` | Enlace «Mi contraseña» en el menú: cambia la propia dando la actual. |
 | Inicio | `/` | Botones grandes (Abrir caja, Escanear, Inventario, Reporte según el rol), cifras de productos y stock bajo; al administrador le muestra las **alertas** (stock bajo y «ya está disponible el reporte de…») con «Ver» y «Entendido». |
 | **Caja** | `/ventas/caja/` | Punto de venta (ver §4.2). El campo de escaneo mantiene el foco: el lector de código de barras «escribe» el código y presiona Enter. |
 | Ventas del día | `/ventas/` | Ventas de un día (hoy por omisión), total vendido, anuladas tachadas. |
 | Comprobante | `/ventas/<n>/` | Comprobante imprimible de una venta; dice en lugar visible **«Comprobante interno de venta — no es boleta electrónica»**. Desde aquí se anula. |
-| Inventario | `/productos/` | Lista con búsqueda y filtro «sólo stock bajo». El vendedor sólo consulta. |
+| Inventario | `/productos/` | Lista con búsqueda y filtro «sólo stock bajo», de a 50 productos por página («Anterior»/«Siguiente» conservan la búsqueda). El vendedor sólo consulta. |
 
 ### Sólo administrador
 
@@ -169,6 +169,10 @@ seguridad de Django). Si el correo ya existe en cualquier almacén, lo rechaza.
   (Almacenes → Administradores). Nadie puede asignarse una a sí mismo por esta vía, y
   el administrador sólo a los vendedores de su almacén. La sesión que esa persona
   tuviera abierta se cierra. Queda registrado quién la cambió (no la contraseña).
+- **Intentos fallidos:** después de 5 intentos fallidos con el mismo correo, o 20
+  desde la misma conexión, el ingreso se bloquea 15 minutos y la pantalla lo dice. Al
+  ingresar bien, o al cambiar la contraseña (por correo o el administrador), se borra
+  el contador de ese correo.
 - **Olvidó la contraseña, por correo:** «¿Olvidaste tu contraseña?» envía un enlace
   que sirve una vez y vence en una hora. La pantalla responde igual exista o no el
   correo (no revela quién está registrado). Máximo 3 correos por dirección y hora.

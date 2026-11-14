@@ -10,7 +10,12 @@
                 <h1 class="h3 text-success fw-bold mb-1">TivoScanea</h1>
                 <p class="text-secondary mb-4">Ingresa con tu correo y contraseña.</p>
 
-                {% if form.errors %}
+                {% if form.bloqueado %}
+                    <div class="alert alert-warning">
+                        Hubo demasiados intentos fallidos. Espera 15 minutos o usa
+                        «¿Olvidaste tu contraseña?» más abajo.
+                    </div>
+                {% elif form.errors %}
                     <div class="alert alert-danger">El correo o la contraseña no son correctos.</div>
                 {% endif %}
 

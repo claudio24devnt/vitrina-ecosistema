@@ -300,3 +300,32 @@ class TestPantallaAjuste:
         )
         datos_a.producto.refresh_from_db()
         assert datos_a.producto.stock_actual == 10
+
+
+@pytest.mark.django_db
+def test_ventas_del_dia_respeta_la_medianoche_local(client, datos_a):
+    """El día es [00:00, 24:00) en hora de Santiago, no en UTC."""
+    from datetime import datetime
+
+    from apps.almacenes.models import ZONA_HORARIA_ALMACEN
+
+    def venta_a_las(dia, hora, minuto):
+        venta = Venta.objects.del_almacen(datos_a.almacen).create(
+            id_usuario=datos_a.vendedor, total=1000, medio_pago=MedioPago.EFECTIVO
+        )
+        momento = datetime(2026, 11, dia, hora, minuto, tzinfo=ZONA_HORARIA_ALMACEN)
+        Venta.objects.del_almacen(datos_a.almacen).filter(pk=venta.pk).update(
+            fecha_hora=momento
+        )
+        return venta.pk
+
+    ultima_del_10 = venta_a_las(10, 23, 59)
+    primera_del_11 = venta_a_las(11, 0, 0)
+    tarde_del_11 = venta_a_las(11, 21, 30)  # ya es 12 de noviembre en UTC
+
+    client.force_login(datos_a.vendedor)
+    respuesta = client.get(reverse("ventas:ventas_del_dia"), {"fecha": "2026-11-11"})
+    ids = {v.pk for v in respuesta.context["ventas"]}
+    assert ids == {primera_del_11, tarde_del_11}
+    assert ultima_del_10 not in ids
+    assert respuesta.context["resumen"]["cantidad"] == 2
