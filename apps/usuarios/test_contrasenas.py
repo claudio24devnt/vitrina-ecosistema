@@ -320,3 +320,8 @@ class TestRecuperarPorCorreo:
         assert "<form" not in html
         client.post(self.URL, {"email": datos_a.vendedor.email})
         assert mail.outbox == []
+
+
+def test_las_pantallas_bloquean_el_doble_envio(client, db):
+    """static/js/formularios.js: un segundo toque no reenvía el formulario."""
+    assert "js/formularios.js" in client.get(reverse("usuarios:login")).content.decode()

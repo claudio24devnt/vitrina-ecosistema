@@ -45,7 +45,7 @@ puede ver ni tocar productos, ventas o usuarios de otro almacén.
 
 ## 3. Pantallas
 
-Todas usan Bootstrap 5 y funcionan en computador y celular. Menú superior verde.
+Todas usan Bootstrap 5 y funcionan en computador y celular. Menú superior verde. Al enviar un formulario, el botón muestra «Procesando…» y los toques repetidos se ignoran (no se envía dos veces).
 
 ### Para todos (con sesión)
 
