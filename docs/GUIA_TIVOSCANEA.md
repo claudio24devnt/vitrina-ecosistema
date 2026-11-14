@@ -45,7 +45,7 @@ puede ver ni tocar productos, ventas o usuarios de otro almacén.
 
 ## 3. Pantallas
 
-Todas usan Bootstrap 5 y funcionan en computador y celular. Menú superior verde. Al enviar un formulario, el botón muestra «Procesando…» y los toques repetidos se ignoran (no se envía dos veces).
+Todas usan Bootstrap 5 y funcionan en computador y celular. Menú superior verde; a la derecha, el nombre del usuario abre «Mi contraseña» y «Salir». Al enviar un formulario, el botón muestra «Procesando…» y los toques repetidos se ignoran (no se envía dos veces).
 
 ### Para todos (con sesión)
 
@@ -69,7 +69,7 @@ Todas usan Bootstrap 5 y funcionan en computador y celular. Menú superior verde
 | Editar producto | `/productos/<id>/editar/` | Cambia datos y precio; **no** cambia el stock (eso va por entradas o ajustes). |
 | Ajuste de inventario | `/productos/<id>/ajustar/` | Conteo físico → el sistema calcula la diferencia. Motivos: diferencia de inventario, producto dañado, producto vencido, corrección administrativa. |
 | Categorías | `/productos/categorias/` | Crear categorías. |
-| Vendedores | `/cuentas/vendedores/` | Crear vendedores (correo único en toda la plataforma) y «Cambiar contraseña» de cada uno. |
+| Vendedores | `/cuentas/vendedores/` | Crear vendedores (correo único en toda la plataforma); por cada uno: «Cambiar contraseña», «Desactivar»/«Reactivar» y «Eliminar» (ver §4.6). |
 | Reporte | `/reportes/mensual/?mes=AAAA-MM` | Reporte mensual (ver §4.4). |
 | Indicadores | `/reportes/indicadores/?mes=AAAA-MM` | Los cuatro indicadores del piloto (ver §4.7). Por omisión, el mes en curso. |
 
@@ -153,6 +153,14 @@ Tareas programadas en Azure (WebJobs), hora de Chile:
 ### 4.6 Gestionar vendedor (CU-06)
 El administrador crea vendedores con nombre, correo y contraseña (con las reglas de
 seguridad de Django). Si el correo ya existe en cualquier almacén, lo rechaza.
+- **Eliminar:** pide confirmación («Esto no se puede deshacer») y borra la cuenta
+  sólo si el vendedor **nunca registró nada** (ventas, anulaciones, movimientos,
+  productos). Si ya vendió, no se puede: el sistema guarda quién hizo cada venta. En
+  ese caso la pantalla ofrece **desactivar la cuenta**.
+- **Desactivar / Reactivar:** la cuenta desactivada no puede ingresar y su sesión
+  abierta se cierra; sus ventas se mantienen con su nombre. Aparece al final de la
+  lista con la etiqueta «Cuenta desactivada».
+- Queda registrado quién eliminó, desactivó o reactivó (log del servidor).
 
 ### 4.8 Contraseñas
 - **Cambiar la propia:** «Mi contraseña» en el menú; pide la actual.

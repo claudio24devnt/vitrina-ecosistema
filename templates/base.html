@@ -40,7 +40,7 @@
                     {% if user.es_admin %}
                     <li class="nav-item">
                         <a class="nav-link {% if request.path == url_escanear %}active{% endif %}"
-                           href="{{ url_escanear }}">Escanear producto</a>
+                           href="{{ url_escanear }}"><span class="text-nowrap">Escanear producto</span></a>
                     </li>
                     {% endif %}
                     <li class="nav-item">
@@ -72,14 +72,24 @@
                     </li>
                     {% endif %}
                 </ul>
-                <div class="d-flex align-items-center gap-3 text-white">
-                    <span class="small">{{ user.nombre }} · {{ user.get_rol_display }}</span>
-                    <a href="{% url 'usuarios:cambiar_contrasena' %}" class="small link-light">Mi contraseña</a>
-                    <form action="{% url 'usuarios:logout' %}" method="post" class="m-0">
-                        {% csrf_token %}
-                        <button type="submit" class="btn btn-outline-light btn-sm">Salir</button>
-                    </form>
-                </div>
+                <ul class="navbar-nav">
+                    <li class="nav-item dropdown">
+                        <a class="nav-link dropdown-toggle text-nowrap" href="#" role="button"
+                           data-bs-toggle="dropdown" aria-expanded="false">
+                            {{ user.nombre }} <span class="small opacity-75">· {{ user.get_rol_display }}</span>
+                        </a>
+                        <ul class="dropdown-menu dropdown-menu-end">
+                            <li><a class="dropdown-item" href="{% url 'usuarios:cambiar_contrasena' %}">Mi contraseña</a></li>
+                            <li><hr class="dropdown-divider"></li>
+                            <li>
+                                <form action="{% url 'usuarios:logout' %}" method="post" class="m-0">
+                                    {% csrf_token %}
+                                    <button type="submit" class="dropdown-item">Salir</button>
+                                </form>
+                            </li>
+                        </ul>
+                    </li>
+                </ul>
             </div>
         </div>
     </nav>

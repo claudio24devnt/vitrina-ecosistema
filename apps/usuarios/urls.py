@@ -20,6 +20,16 @@ urlpatterns = [
         views.contrasena_vendedor,
         name="contrasena_vendedor",
     ),
+    path(
+        "vendedores/<int:id_usuario>/eliminar/",
+        views.confirmar_eliminar_vendedor,
+        name="eliminar_vendedor",
+    ),
+    path(
+        "vendedores/<int:id_usuario>/estado/",
+        views.estado_vendedor,
+        name="estado_vendedor",
+    ),
     path("contrasena/", views.CambiarContrasenaView.as_view(), name="cambiar_contrasena"),
     # Recuperación por correo (fase 2). El enlace del correo lleva uidb64 y token.
     path("recuperar/", views.RecuperarContrasenaView.as_view(), name="recuperar"),

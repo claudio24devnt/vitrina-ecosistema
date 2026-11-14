@@ -11,6 +11,7 @@ from django.contrib.auth.password_validation import validate_password
 from django.core.cache import cache
 from django.core.exceptions import ValidationError
 from django.db import IntegrityError, transaction
+from django.db.models import ProtectedError
 
 from apps.almacenes.errores import ReglaDeNegocioError
 
@@ -82,7 +83,12 @@ def crear_administrador(*, almacen, nombre, email, password, operador=False):
 
 
 def vendedores_del_almacen(almacen):
-    return Usuario.objects.del_almacen(almacen).filter(rol=RolUsuario.VENDEDOR)
+    """Vendedores del almacén: primero los activos, luego los desactivados."""
+    return (
+        Usuario.objects.del_almacen(almacen)
+        .filter(rol=RolUsuario.VENDEDOR)
+        .order_by("-is_active", "nombre")
+    )
 
 
 # ---- Contraseñas ----------------------------------------------------------------
@@ -165,3 +171,80 @@ def admitir_correo_de_recuperacion(email):
         cache.set(clave, 1, timeout=60 * 60)
         enviados = 1
     return enviados <= MAX_CORREOS_RECUPERACION_POR_HORA
+
+
+# ---- Eliminar y desactivar vendedores (CU-06) --------------------------------------
+
+
+def _verificar_gestion_de_vendedor(autor, vendedor):
+    """Sólo el administrador del mismo almacén gestiona a sus vendedores."""
+    if not (
+        autor.es_admin
+        and vendedor.rol == RolUsuario.VENDEDOR
+        and vendedor.id_almacen_id == autor.id_almacen_id
+        and autor.pk != vendedor.pk
+    ):
+        raise ReglaDeNegocioError("No puedes modificar a ese usuario.")
+
+
+def vendedor_tiene_historial(vendedor):
+    """
+    True si el vendedor aparece como autor de algo: ventas, anulaciones, movimientos
+    de stock o productos creados. Esas filas lo protegen (on_delete=PROTECT): quién
+    vendió y quién anuló no se pierde nunca (CU-03).
+    """
+    return (
+        vendedor.ventas.exists()
+        or vendedor.ventas_anuladas.exists()
+        or vendedor.movimientos_stock.exists()
+        or vendedor.productos_creados.exists()
+        or vendedor.accesos_reporte.exists()
+        or vendedor.alertas_vistas.exists()
+    )
+
+
+MENSAJE_CON_HISTORIAL = (
+    "«{nombre}» tiene ventas o movimientos registrados y no se puede eliminar: el "
+    "sistema guarda quién hizo cada venta. Desactiva su cuenta para que no pueda ingresar."
+)
+
+
+def eliminar_vendedor(*, autor, vendedor):
+    """
+    Elimina un vendedor sin historial (p. ej. creado por error). Con historial se
+    rechaza y se ofrece desactivarlo. Sus sesiones quedan inválidas al no existir.
+    """
+    _verificar_gestion_de_vendedor(autor, vendedor)
+    if vendedor_tiene_historial(vendedor):
+        raise ReglaDeNegocioError(MENSAJE_CON_HISTORIAL.format(nombre=vendedor.nombre))
+    id_vendedor, nombre = vendedor.pk, vendedor.nombre
+    try:
+        with transaction.atomic():
+            vendedor.delete()
+    except ProtectedError:  # se registró algo entre la revisión y el borrado
+        raise ReglaDeNegocioError(MENSAJE_CON_HISTORIAL.format(nombre=nombre)) from None
+    registro_seguridad.info(
+        "Vendedor eliminado: usuario %s (almacén %s) por usuario %s",
+        id_vendedor,
+        autor.id_almacen_id,
+        autor.pk,
+    )
+    return nombre
+
+
+def cambiar_estado_vendedor(*, autor, vendedor, activo):
+    """
+    Desactiva (no puede ingresar; su sesión abierta se cierra en la siguiente
+    solicitud) o reactiva a un vendedor. Sus ventas y movimientos no cambian.
+    """
+    _verificar_gestion_de_vendedor(autor, vendedor)
+    vendedor.is_active = activo
+    vendedor.save(update_fields=["is_active"])
+    registro_seguridad.info(
+        "Vendedor %s: usuario %s (almacén %s) por usuario %s",
+        "reactivado" if activo else "desactivado",
+        vendedor.pk,
+        vendedor.id_almacen_id,
+        autor.pk,
+    )
+    return vendedor

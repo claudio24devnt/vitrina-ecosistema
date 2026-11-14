@@ -578,6 +578,11 @@ años.
   alta rápida, cobro sin plazo con aviso a los 3 s (nunca se corta un POST de venta).
 - `FormularioBootstrap.add_error` marca `is-invalid`: antes, un error agregado por la
   vista después de validar quedaba oculto (afectaba «categoría ya existe»).
+- **Eliminar vendedor (2026-11-14, pedido para la evaluación 3, CRUD):** `eliminar_vendedor()`
+  borra sólo si `vendedor_tiene_historial()` es falso (las FK al usuario son PROTECT:
+  quién vendió/anuló no se pierde); con historial se ofrece `cambiar_estado_vendedor()`
+  (`is_active`, campo de Django, sin cambio de modelo). Rutas
+  `/cuentas/vendedores/<id>/eliminar/` (confirmación) y `.../estado/` (sólo POST).
 - **Venta por peso (jamón, queso a granel): v2** (decidido 2026-11-14). Exige cambiar
   el modelo (unidad de venta en `producto`, gramos en detalle/movimiento/stock) y separar
   unidades de kilos en el reporte. Ojo: los códigos de la demo empiezan con `2000…`,
