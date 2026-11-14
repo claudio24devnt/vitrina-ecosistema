@@ -5,6 +5,7 @@ from django.contrib import messages
 from django.contrib.auth import views as auth_views
 from django.http import Http404
 from django.shortcuts import get_object_or_404, redirect, render
+from django.views.decorators.http import require_POST
 from django.urls import reverse_lazy
 
 from apps.almacenes.errores import ReglaDeNegocioError
@@ -20,9 +21,12 @@ from .forms import (
 from .models import RolUsuario, Usuario
 from .servicios import (
     admitir_correo_de_recuperacion,
+    cambiar_estado_vendedor,
     crear_vendedor,
+    eliminar_vendedor,
     puede_restablecer,
     restablecer_contrasena,
+    vendedor_tiene_historial,
     vendedores_del_almacen,
 )
 
@@ -84,13 +88,61 @@ def asignar_contrasena(request, usuario, volver_a):
     )
 
 
-@rol_requerido(RolUsuario.ADMIN)
-def contrasena_vendedor(request, id_usuario):
-    """El administrador asigna una contraseña nueva a un vendedor de su almacén."""
-    vendedor = get_object_or_404(
+def _vendedor_del_almacen(request, id_usuario):
+    return get_object_or_404(
         Usuario.objects.del_almacen(request.almacen).filter(rol=RolUsuario.VENDEDOR),
         pk=id_usuario,
     )
+
+
+@rol_requerido(RolUsuario.ADMIN)
+def confirmar_eliminar_vendedor(request, id_usuario):
+    """
+    Confirmación antes de eliminar (no se puede deshacer). Si el vendedor ya tiene
+    ventas o movimientos, explica por qué no se puede y ofrece desactivarlo.
+    """
+    vendedor = _vendedor_del_almacen(request, id_usuario)
+    if request.method == "POST":
+        try:
+            nombre = eliminar_vendedor(autor=request.user, vendedor=vendedor)
+        except ReglaDeNegocioError as error:
+            messages.error(request, str(error))
+        else:
+            messages.success(request, f"Se eliminó la cuenta de «{nombre}».")
+        return redirect("usuarios:vendedores")
+    return render(
+        request,
+        "usuarios/eliminar_vendedor.html",
+        {"vendedor": vendedor, "tiene_historial": vendedor_tiene_historial(vendedor)},
+    )
+
+
+@require_POST
+@rol_requerido(RolUsuario.ADMIN)
+def estado_vendedor(request, id_usuario):
+    """Desactiva o reactiva a un vendedor (campo «activo»: «1» o «0»)."""
+    vendedor = _vendedor_del_almacen(request, id_usuario)
+    activo = request.POST.get("activo") == "1"
+    try:
+        cambiar_estado_vendedor(autor=request.user, vendedor=vendedor, activo=activo)
+    except ReglaDeNegocioError as error:
+        messages.error(request, str(error))
+    else:
+        if activo:
+            messages.success(request, f"«{vendedor.nombre}» puede volver a ingresar.")
+        else:
+            messages.success(
+                request,
+                f"La cuenta de «{vendedor.nombre}» quedó desactivada: ya no puede "
+                "ingresar. Sus ventas se mantienen.",
+            )
+    return redirect("usuarios:vendedores")
+
+
+@rol_requerido(RolUsuario.ADMIN)
+def contrasena_vendedor(request, id_usuario):
+    """El administrador asigna una contraseña nueva a un vendedor de su almacén."""
+    vendedor = _vendedor_del_almacen(request, id_usuario)
     return asignar_contrasena(request, vendedor, "usuarios:vendedores")
 
 

@@ -24,13 +24,31 @@
         {% if vendedores %}
         <ul class="list-group shadow-sm">
             {% for vendedor in vendedores %}
-            <li class="list-group-item d-flex flex-wrap justify-content-between align-items-center gap-2">
+            <li class="list-group-item d-flex flex-wrap justify-content-between align-items-center gap-2{% if not vendedor.is_active %} bg-body-tertiary{% endif %}">
                 <span>
                     {{ vendedor.nombre }}
+                    {% if not vendedor.is_active %}<span class="badge text-bg-secondary ms-1">Cuenta desactivada</span>{% endif %}
                     <span class="d-block small text-secondary">{{ vendedor.email }}</span>
                 </span>
-                <a href="{% url 'usuarios:contrasena_vendedor' vendedor.pk %}"
-                   class="btn btn-outline-secondary btn-sm">Cambiar contraseña</a>
+                <span class="d-flex flex-wrap gap-2">
+                    {% if vendedor.is_active %}
+                    <a href="{% url 'usuarios:contrasena_vendedor' vendedor.pk %}"
+                       class="btn btn-outline-secondary btn-sm">Cambiar contraseña</a>
+                    <form method="post" action="{% url 'usuarios:estado_vendedor' vendedor.pk %}" class="m-0">
+                        {% csrf_token %}
+                        <input type="hidden" name="activo" value="0">
+                        <button type="submit" class="btn btn-outline-secondary btn-sm">Desactivar</button>
+                    </form>
+                    {% else %}
+                    <form method="post" action="{% url 'usuarios:estado_vendedor' vendedor.pk %}" class="m-0">
+                        {% csrf_token %}
+                        <input type="hidden" name="activo" value="1">
+                        <button type="submit" class="btn btn-outline-success btn-sm">Reactivar</button>
+                    </form>
+                    {% endif %}
+                    <a href="{% url 'usuarios:eliminar_vendedor' vendedor.pk %}"
+                       class="btn btn-outline-danger btn-sm">Eliminar</a>
+                </span>
             </li>
             {% endfor %}
         </ul>
