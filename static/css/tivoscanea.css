@@ -19,6 +19,75 @@
     line-height: 1;
 }
 
+/* Gráfico del reporte: lo vendido cada día. Barras en HTML, sin librerías de gráficos. */
+.grafico-plano {
+    position: relative;
+    height: 13rem;
+    margin: 0.75rem 0 1.75rem 4.75rem;
+}
+
+.grafico-marca {
+    position: absolute;
+    left: 0;
+    right: 0;
+    border-top: 1px solid var(--bs-gray-200);
+}
+
+.grafico-marca span {
+    position: absolute;
+    right: 100%;
+    padding-right: 0.5rem;
+    transform: translateY(-50%);
+    font-size: 0.75rem;
+    font-variant-numeric: tabular-nums;
+    color: var(--bs-secondary-color);
+    white-space: nowrap;
+}
+
+.grafico-columnas {
+    position: absolute;
+    inset: 0;
+    display: flex;
+}
+
+.grafico-columna {
+    position: relative;
+    flex: 1 1 0;
+    min-width: 0;
+    display: flex;
+    align-items: flex-end;
+    justify-content: center;
+}
+
+.grafico-columna:hover,
+.grafico-columna:focus-visible {
+    background: var(--bs-gray-100);
+}
+
+.grafico-barra {
+    width: calc(100% - 2px);
+    max-width: 24px;
+    min-height: 2px;
+    border-radius: 4px 4px 0 0;
+    background: var(--bs-success);
+    forced-color-adjust: none;
+}
+
+.grafico-barra-mayor {
+    background: var(--bs-success-text-emphasis);
+}
+
+.grafico-dia {
+    position: absolute;
+    top: 100%;
+    left: 50%;
+    margin-top: 0.25rem;
+    transform: translateX(-50%);
+    font-size: 0.75rem;
+    font-variant-numeric: tabular-nums;
+    color: var(--bs-secondary-color);
+}
+
 /* Comprobante: al imprimir sólo sale el comprobante (sirve en impresora térmica). */
 @media print {
     .navbar,

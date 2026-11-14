@@ -3,6 +3,7 @@ Integración y sistema: pantalla y API del reporte mensual (CU-04), alertas en e
 panel y comandos programados (CU-05, cierre de mes). Datos FICTICIOS.
 """
 
+import re
 from datetime import date
 from io import StringIO
 
@@ -63,6 +64,24 @@ class TestPantallaReporte:
         html = client.get(URL_REPORTE, {"mes": "2026-08"}).content.decode()
         assert "No hay ventas registradas en agosto 2026." in html
         assert "Productos más vendidos" not in html
+        assert "Lo vendido cada día" not in html
+        assert "js/reporte" not in html
+
+    def test_el_grafico_muestra_lo_vendido_cada_dia(
+        self, client, admin, con_ventas_en_septiembre
+    ):
+        client.force_login(admin)
+        html = client.get(URL_REPORTE, {"mes": "2026-09"}).content.decode()
+        assert "Lo vendido cada día" in html
+        assert html.count('class="grafico-columna"') == 30
+        assert "Día con más venta" in html and "lunes 7" in html
+        assert 'aria-label="lunes 7: $1.000, 1 venta"' in html
+        assert "js/reporte" in html
+        # Decimales con punto: con coma el navegador ignoraría la altura.
+        assert re.findall(r'grafico-barra[^"]*" style="height: ([\d.]+)%"', html) == [
+            "100.0",
+            "50.0",
+        ]
 
     def test_por_omision_muestra_el_ultimo_mes_cerrado(self, client, admin):
         client.force_login(admin)
@@ -94,6 +113,8 @@ class TestAPIReporte:
         assert datos["cantidad_ventas"] == 2
         assert datos["mas_vendidos"][0]["nombre"] == "Pan Amasado Ficticio"
         assert [f["cantidad"] for f in datos["por_franja"]] == [1, 0, 0, 1, 0]
+        assert datos["por_dia"][6]["etiqueta"] == "lunes 7"
+        assert len(datos["por_dia"]) == 30
         assert datos["variacion"] is None and datos["motivo_sin_comparacion"]
         assert AccesoReporte.objects.del_almacen(tienda).count() == 1
 

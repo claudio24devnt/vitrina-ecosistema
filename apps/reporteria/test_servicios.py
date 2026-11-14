@@ -20,6 +20,7 @@ from apps.reporteria.servicios import (
     TOPE_MAS_VENDIDOS,
     alertar_stock_bajo,
     alertas_del_panel,
+    armar_grafico_diario,
     avisar_cierre_mes,
     consultar_reporte_mensual,
     marcar_alerta_vista,
@@ -316,10 +317,119 @@ class TestCalculoEnLaBaseDeDatos:
         for dia in range(1, 31):
             vender(tienda, local(2026, 9, dia, 12), (producto, 1))
         vender(tienda, local(2026, 8, 3, 12), (producto, 1))
-        # Inicio de registros, totales, más vendidos, día, franja (+ franjas), meses.
-        with django_assert_max_num_queries(7):
+        # Inicio de registros, totales, más vendidos, cada día, día de la semana,
+        # franja (+ franjas), meses.
+        with django_assert_max_num_queries(8):
             reporte = reporte_mensual(tienda, SEPTIEMBRE, HOY)
         assert reporte.cantidad_ventas == 30
+
+
+@pytest.mark.django_db
+class TestVentasPorDia:
+    def test_trae_todos_los_dias_del_mes_y_suma_cada_uno(self, tienda, producto):
+        vender(tienda, local(2026, 9, 7, 9), (producto, 2))
+        vender(tienda, local(2026, 9, 7, 19), (producto, 1))
+        vender(tienda, local(2026, 9, 8, 9), (producto, 1))
+        filas = reporte_mensual(tienda, SEPTIEMBRE, HOY).por_dia
+        assert len(filas) == 30
+        assert (filas[6]["etiqueta"], filas[6]["cantidad"], filas[6]["monto"]) == (
+            "lunes 7",
+            2,
+            Decimal("3000"),
+        )
+        assert (filas[0]["cantidad"], filas[0]["monto"]) == (0, Decimal("0"))
+        assert [f["fecha"].day for f in filas if f["es_mayor"]] == [7]
+
+    def test_el_dia_se_cuenta_en_hora_local_no_en_utc(self, tienda, producto):
+        momento = local(2026, 9, 7, 23, 30)
+        assert momento.astimezone(UTC).day == 8
+        vender(tienda, momento, (producto, 1))
+        filas = reporte_mensual(tienda, SEPTIEMBRE, HOY).por_dia
+        assert [f["fecha"].day for f in filas if f["cantidad"]] == [7]
+
+    def test_las_anuladas_no_cuentan(self, tienda, producto):
+        vender(tienda, local(2026, 9, 7, 9), (producto, 1))
+        venta = vender(tienda, local(2026, 9, 8, 9), (producto, 1))
+        anular_venta(
+            almacen=tienda,
+            venta=venta,
+            usuario=usuario_de(tienda),
+            motivo="Error de digitación",
+            momento=local(2026, 9, 8, 9, 5),
+        )
+        filas = reporte_mensual(tienda, SEPTIEMBRE, HOY).por_dia
+        assert [f["fecha"].day for f in filas if f["cantidad"]] == [7]
+
+    def test_mes_en_curso_no_inventa_los_dias_que_no_han_pasado(self, tienda, producto):
+        vender(tienda, local(2026, 10, 2, 9), (producto, 1))
+        filas = reporte_mensual(tienda, date(2026, 10, 1), HOY).por_dia
+        assert (filas[0]["fecha"], filas[-1]["fecha"]) == (date(2026, 10, 1), HOY)
+
+    def test_mes_iniciado_a_la_mitad_parte_el_dia_del_alta(self, almacen):
+        tienda = dar_de_alta_en(almacen, date(2026, 9, 14))
+        vender(tienda, local(2026, 9, 15, 9), (producto_ficticio(tienda), 1))
+        filas = reporte_mensual(tienda, SEPTIEMBRE, HOY).por_dia
+        assert filas[0]["fecha"] == date(2026, 9, 14)
+        assert len(filas) == 17
+
+    def test_mes_sin_ventas_no_trae_dias(self, tienda):
+        assert reporte_mensual(tienda, SEPTIEMBRE, HOY).por_dia == []
+
+
+def _fila_diaria(dia, monto, es_mayor=False):
+    fecha = date(2026, 9, dia)
+    return {
+        "fecha": fecha,
+        "etiqueta": f"día {dia}",
+        "cantidad": 1 if monto else 0,
+        "monto": Decimal(monto),
+        "es_mayor": es_mayor,
+    }
+
+
+class TestGraficoDiario:
+    @pytest.mark.parametrize(
+        "maximo, marcas",
+        [
+            (1, [0, 1]),
+            (3, [0, 1, 2, 3]),
+            (250, [0, 100, 200, 300]),
+            (45000, [0, 20000, 40000, 60000]),
+            (100000, [0, 50000, 100000]),
+            (1234567, [0, 500000, 1000000, 1500000]),
+        ],
+    )
+    def test_el_eje_usa_marcas_redondas_que_cubren_el_maximo(self, maximo, marcas):
+        grafico = armar_grafico_diario([_fila_diaria(1, maximo, True)])
+        assert [m["monto"] for m in grafico["marcas"]] == marcas
+        assert grafico["marcas"][-1]["altura"] == Decimal("100.0")
+
+    def test_la_altura_es_proporcional_al_tope_del_eje(self):
+        barras = armar_grafico_diario(
+            [_fila_diaria(1, 0), _fila_diaria(2, 45000, True), _fila_diaria(3, 15000)]
+        )["barras"]
+        assert [b["altura"] for b in barras] == [
+            Decimal("0.0"),
+            Decimal("75.0"),
+            Decimal("25.0"),
+        ]
+
+    def test_nombra_todos_los_dias_empatados_como_mayores(self):
+        grafico = armar_grafico_diario(
+            [_fila_diaria(1, 500, True), _fila_diaria(2, 100), _fila_diaria(3, 500, True)]
+        )
+        assert grafico["dias_mayores"] == "día 1, día 3"
+        assert grafico["monto_mayor"] == Decimal("500")
+
+    def test_rotula_cada_cinco_dias_sin_pegarse_al_primero(self):
+        def rotulos(desde, hasta):
+            filas = [_fila_diaria(dia, 100) for dia in range(desde, hasta + 1)]
+            barras = armar_grafico_diario([{**f, "es_mayor": False} for f in filas])["barras"]
+            return [b["rotulo"] for b in barras if b["rotulo"]]
+
+        assert rotulos(1, 30) == [1, 5, 10, 15, 20, 25, 30]
+        assert rotulos(14, 20) == [15, 20]  # el 14 quedaría pegado al 15
+        assert rotulos(12, 15) == [12, 15]
 
 
 @pytest.mark.django_db
@@ -334,6 +444,7 @@ class TestAislamientoDelReporte:
         reporte = reporte_mensual(tienda, SEPTIEMBRE, HOY)
         assert reporte.cantidad_ventas == 1
         assert [f["nombre"] for f in reporte.mas_vendidos] == ["Producto Ficticio"]
+        assert sum(f["monto"] for f in reporte.por_dia) == producto.precio
 
 
 @pytest.mark.django_db
