@@ -176,6 +176,8 @@ class TestAltaYEdicion:
         client.post(reverse("inventario:categorias"), {"nombre": "Lácteos"})
         respuesta = client.post(reverse("inventario:categorias"), {"nombre": "lácteos"})
         assert "Ya existe la categoría" in respuesta.content.decode()
+        # Visible: Bootstrap sólo muestra .invalid-feedback junto a un campo is-invalid.
+        assert "is-invalid" in respuesta.context["form"].fields["nombre"].widget.attrs["class"]
 
 
 @pytest.mark.django_db
