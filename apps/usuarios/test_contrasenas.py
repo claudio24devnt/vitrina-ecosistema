@@ -276,6 +276,9 @@ class TestRecuperarPorCorreo:
         assert correo.to == [datos_a.vendedor.email]
         assert "crea tu contraseña nueva" in correo.subject
         assert "Vendedor Ficticio A" in correo.body
+        html, tipo = correo.alternatives[0]
+        assert tipo == "text/html"
+        assert f'href="http://testserver{self._enlace(correo)}"' in html
 
         enlace = self._enlace(correo)
         formulario = client.get(enlace, follow=True)
