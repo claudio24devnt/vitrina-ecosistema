@@ -1,6 +1,14 @@
-"""Gestión de usuarios del almacén (CU-06) y del administrador inicial de cada almacén."""
+"""
+Gestión de usuarios del almacén (CU-06), del administrador inicial de cada almacén y
+de las contraseñas: restablecerlas sin correo (el administrador a sus vendedores, el
+operador a los administradores) y limitar los correos de recuperación.
+"""
+
+import hashlib
+import logging
 
 from django.contrib.auth.password_validation import validate_password
+from django.core.cache import cache
 from django.core.exceptions import ValidationError
 from django.db import IntegrityError, transaction
 
@@ -75,3 +83,85 @@ def crear_administrador(*, almacen, nombre, email, password, operador=False):
 
 def vendedores_del_almacen(almacen):
     return Usuario.objects.del_almacen(almacen).filter(rol=RolUsuario.VENDEDOR)
+
+
+# ---- Contraseñas ----------------------------------------------------------------
+
+registro_seguridad = logging.getLogger("tivoscanea.seguridad")
+
+
+def _validar_contrasena(password, usuario):
+    try:
+        validate_password(password, user=usuario)
+    except ValidationError as error:
+        raise ReglaDeNegocioError(" ".join(error.messages)) from None
+
+
+def puede_restablecer(autor, usuario):
+    """
+    Quién puede asignar una contraseña nueva a otro, sin conocer la anterior:
+    - el administrador, a los vendedores de su almacén;
+    - el operador de la plataforma, a los administradores de los almacenes clientes.
+    Nadie a sí mismo: para eso está el cambio con la contraseña actual.
+    """
+    if autor.pk == usuario.pk or not usuario.is_active:
+        return False
+    if autor.is_superuser:
+        return usuario.rol == RolUsuario.ADMIN and not usuario.is_superuser
+    return (
+        autor.es_admin
+        and usuario.rol == RolUsuario.VENDEDOR
+        and usuario.id_almacen_id == autor.id_almacen_id
+    )
+
+
+def restablecer_contrasena(*, autor, usuario, password):
+    """
+    Asigna una contraseña nueva a `usuario` (ver `puede_restablecer`). Las sesiones
+    que tenga abiertas se cierran solas: Django las firma con el hash de la contraseña.
+    Queda en el registro quién la cambió (log de App Service), sin la contraseña.
+    """
+    if not puede_restablecer(autor, usuario):
+        raise ReglaDeNegocioError("No puedes cambiar la contraseña de ese usuario.")
+    _validar_contrasena(password, usuario)
+    usuario.set_password(password)
+    usuario.save(update_fields=["password"])
+    registro_seguridad.info(
+        "Contraseña restablecida: usuario %s (almacén %s) por usuario %s",
+        usuario.pk,
+        usuario.id_almacen_id,
+        autor.pk,
+    )
+    return usuario
+
+
+def administradores_de_clientes():
+    """
+    Administradores de los almacenes clientes, para la pantalla del operador.
+    Consulta transversal intencional (como `almacenes_clientes`): no incluye al
+    operador ni toca datos de ventas.
+    """
+    return (
+        Usuario.sin_aislamiento.filter(rol=RolUsuario.ADMIN, is_superuser=False)
+        .select_related("id_almacen")
+        .order_by("id_almacen__razon_social", "nombre")
+    )
+
+
+# Correos de recuperación por dirección y hora. Evita que alguien use el formulario
+# para llenarle la bandeja a otro. El contador vive en la caché de cada proceso de
+# gunicorn (sin Redis, §2.1): con 2 workers el tope real es el doble.
+MAX_CORREOS_RECUPERACION_POR_HORA = 3
+
+
+def admitir_correo_de_recuperacion(email):
+    """True si todavía se puede enviar un correo de recuperación a `email` esta hora."""
+    huella = hashlib.sha256((email or "").strip().lower().encode()).hexdigest()
+    clave = f"recuperacion:{huella}"
+    cache.add(clave, 0, timeout=60 * 60)
+    try:
+        enviados = cache.incr(clave)
+    except ValueError:  # venció justo entre add e incr
+        cache.set(clave, 1, timeout=60 * 60)
+        enviados = 1
+    return enviados <= MAX_CORREOS_RECUPERACION_POR_HORA

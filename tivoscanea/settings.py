@@ -103,6 +103,32 @@ LOGIN_URL = "usuarios:login"
 LOGIN_REDIRECT_URL = "inicio"
 LOGOUT_REDIRECT_URL = "usuarios:login"
 
+# Recuperación de contraseña por correo. El enlace sirve una sola vez y vence en una
+# hora (Django usa 3 días por defecto).
+PASSWORD_RESET_TIMEOUT = 60 * 60
+
+# Correo saliente por SMTP, con cualquier proveedor (ver infra/README.md). Sin
+# EMAIL_HOST no se envían correos: la pantalla «¿Olvidaste tu contraseña?» explica
+# que la contraseña la cambia el administrador (o el operador, para un administrador).
+# En desarrollo (DEBUG) los correos se imprimen en la consola de runserver.
+EMAIL_HOST = env("EMAIL_HOST", default="")
+EMAIL_PORT = env.int("EMAIL_PORT", default=587)
+EMAIL_HOST_USER = env("EMAIL_HOST_USER", default="")
+EMAIL_HOST_PASSWORD = env("EMAIL_HOST_PASSWORD", default="")
+EMAIL_USE_TLS = env.bool("EMAIL_USE_TLS", default=True)
+EMAIL_TIMEOUT = 10
+DEFAULT_FROM_EMAIL = env("DEFAULT_FROM_EMAIL", default="TivoScanea <no-responder@localhost>")
+# Alternativa sin SMTP ni clave: Azure Communication Services con la identidad
+# administrada del App Service (tivoscanea/correo_acs.py, infra/modulos/correo.bicep).
+ACS_ENDPOINT = env("ACS_ENDPOINT", default="")
+if ACS_ENDPOINT:
+    EMAIL_BACKEND = "tivoscanea.correo_acs.CorreoACSBackend"
+elif EMAIL_HOST:
+    EMAIL_BACKEND = "django.core.mail.backends.smtp.EmailBackend"
+else:
+    EMAIL_BACKEND = "django.core.mail.backends.console.EmailBackend"
+RECUPERACION_POR_CORREO = bool(ACS_ENDPOINT or EMAIL_HOST) or DEBUG
+
 
 # Password validation
 # https://docs.djangoproject.com/en/5.2/ref/settings/#auth-password-validators
@@ -200,5 +226,7 @@ LOGGING = {
     "root": {"handlers": ["consola"], "level": "WARNING"},
     "loggers": {
         "django.request": {"handlers": ["consola"], "level": "ERROR", "propagate": False},
+        # Cambios de contraseña hechos por otro (apps/usuarios/servicios.py).
+        "tivoscanea.seguridad": {"handlers": ["consola"], "level": "INFO", "propagate": False},
     },
 }

@@ -33,6 +33,14 @@ param ipAdministrador string = ''
 @description('Correo para las alertas de monitoreo. Vacío = sin monitoreo.')
 param correoAlertas string = ''
 
+@description('Endpoint de ACS (salida de modulos/correo.bicep). Vacío = sin ACS.')
+param acsEndpoint string = ''
+@description('Servidor SMTP (alternativa a ACS). Vacío = sin SMTP.')
+param correoSmtpHost string = ''
+param correoSmtpUsuario string = ''
+@description('Remitente, p. ej. «TivoScanea <no-responder@dominio>».')
+param correoRemitente string = ''
+
 param usuarioBaseDatos string = 'tivoscanea_admin'
 
 @secure()
@@ -99,6 +107,10 @@ module app 'modulos/appservice.bicep' = {
     usuarioBaseDatos: usuarioBaseDatos
     dominio: dominio
     enlazarDominio: enlazarDominio
+    acsEndpoint: acsEndpoint
+    correoSmtpHost: correoSmtpHost
+    correoSmtpUsuario: correoSmtpUsuario
+    correoRemitente: correoRemitente
   }
 }
 

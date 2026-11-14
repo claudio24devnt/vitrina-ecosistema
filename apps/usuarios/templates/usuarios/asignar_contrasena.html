@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+
+{% block titulo %}Cambiar contraseña — TivoScanea{% endblock %}
+
+{% block contenido %}
+<div class="row justify-content-center">
+    <div class="col-md-8 col-lg-5">
+        <h1 class="h3 mb-1">Contraseña nueva para {{ usuario_objetivo.nombre }}</h1>
+        <p class="text-secondary">{{ usuario_objetivo.email }}</p>
+        <div class="card shadow-sm">
+            <div class="card-body">
+                <p class="small text-secondary">
+                    Escribe una contraseña nueva y entrégasela en persona. La anterior deja
+                    de servir y, si tenía la sesión abierta, tendrá que ingresar de nuevo.
+                </p>
+                <form method="post" novalidate>
+                    {% csrf_token %}
+                    {% include "_campos_formulario.html" %}
+                    <button type="submit" class="btn btn-success">Cambiar contraseña</button>
+                    <a href="{% url volver_a %}" class="btn btn-link text-secondary">Volver</a>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

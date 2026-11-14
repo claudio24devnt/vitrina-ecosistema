@@ -490,6 +490,8 @@ años.
     `SUM(...) OVER ()` para participaciones; `LAG()` para la variación mensual) y
     `consultar_reporte_mensual` (registra `acceso_reporte` y da por visto el aviso
     de cierre de ese mes). Consultas constantes, no crecen con las ventas.
+  - Gráfico «Lo vendido cada día» (`ventas_por_dia()`, `armar_grafico_diario()`): barras
+    en HTML/CSS más tooltip de Bootstrap (`static/js/reporte.js`), sin librería de gráficos.
   - Día de la semana: promedio por ocurrencias del día en el período (un mes trae 4
     o 5 de cada uno). Franjas: todas, con su horario.
   - Comparación (3a): sólo entre meses consecutivos y **completos**. No se compara
@@ -556,6 +558,30 @@ años.
 - **Restauración del respaldo probada (2026-10-18):** 9 min 17 s; ver `infra/README.md`.
 - **`docs/GUIA_TIVOSCANEA.md`**: guía de la aplicación para Claude Desktop (sin
   acceso al código). **Al cambiar un comportamiento visible, actualizarla.**
+- **Contraseñas (2026-11-14, no estaba en el brief; aprobado por el autor):** fase 1 sin
+  correo: «Mi contraseña» (`PasswordChangeView`), el admin asigna la del vendedor
+  (`/cuentas/vendedores/<id>/contrasena/`) y el operador la del admin
+  (`/plataforma/administradores/<id>/contrasena/`); regla en `puede_restablecer()` y
+  `restablecer_contrasena()` (`apps/usuarios/servicios.py`, log `tivoscanea.seguridad`).
+  Fase 2: recuperación por correo (`/cuentas/recuperar/`, vistas de Django, enlace de
+  1 h, tope de 3 correos por dirección y hora en caché local). SMTP genérico por
+  `EMAIL_*` o, **en uso**, Azure Communication Services con la identidad administrada
+  (`tivoscanea/correo_acs.py`, sin SDK ni clave; `ACS_ENDPOINT`; recursos en
+  `infra/modulos/correo.bicep`, desplegado el 2026-11-14). El SMTP de ACS no se puede:
+  el tenant de INACAP no deja crear registros de aplicación. Dominio administrado por
+  Azure = sólo pruebas (pocos correos por hora). Sin correo configurado y sin DEBUG,
+  la pantalla sólo explica a quién pedirla (`RECUPERACION_POR_CORREO`). Si el envío
+  falla, la recuperación responde igual (no revela qué correos existen) y queda en log.
+- **Log de acceso (2026-11-14):** `gunicorn.conf.py` (método, ruta sin consulta,
+  estado, bytes, ms, agente; sin IP).
+- **Caja (2026-11-14):** cola de escaneos (no se descartan), plazo de 8 s en búsqueda y
+  alta rápida, cobro sin plazo con aviso a los 3 s (nunca se corta un POST de venta).
+- `FormularioBootstrap.add_error` marca `is-invalid`: antes, un error agregado por la
+  vista después de validar quedaba oculto (afectaba «categoría ya existe»).
+- **Venta por peso (jamón, queso a granel): v2** (decidido 2026-11-14). Exige cambiar
+  el modelo (unidad de venta en `producto`, gramos en detalle/movimiento/stock) y separar
+  unidades de kilos en el reporte. Ojo: los códigos de la demo empiezan con `2000…`,
+  rango GS1 de etiquetas de balanza; habría que moverlos.
 - Prueba de carga en Azure: `manage.py preparar_almacen_carga` (sólo almacenes de plan
   `carga`, nunca el piloto) + `pruebas_carga/locustfile.py` con `CARGA_EMAIL/CLAVE`.
 - Montos en pantalla con el filtro `pesos` (`{% load formato %}`).
@@ -570,8 +596,8 @@ años.
 python manage.py runserver
 python -m pytest
 python -m pytest --cov            # cobertura de servicios y modelos (mínimo 80 %)
-black apps tivoscanea manage.py conftest.py pruebas_carga scripts
-flake8 apps tivoscanea manage.py conftest.py pruebas_carga scripts
+black apps tivoscanea manage.py conftest.py gunicorn.conf.py pruebas_carga scripts
+flake8 apps tivoscanea manage.py conftest.py gunicorn.conf.py pruebas_carga scripts
 python manage.py cargar_datos_ficticios --limpiar   # datos de demostración
 python manage.py alertar_stock_bajo; python manage.py avisar_cierre_mes
 python manage.py makemigrations && python manage.py migrate

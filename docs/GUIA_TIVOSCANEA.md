@@ -51,7 +51,9 @@ Todas usan Bootstrap 5 y funcionan en computador y celular. Menú superior verde
 
 | Pantalla | Ruta | Qué hace |
 |---|---|---|
-| Ingresar | `/cuentas/login/` | Correo y contraseña. |
+| Ingresar | `/cuentas/login/` | Correo y contraseña. Enlace «¿Olvidaste tu contraseña?» (ver §4.8). |
+| ¿Olvidaste tu contraseña? | `/cuentas/recuperar/` | Sin sesión. Con correo configurado, envía un enlace; si no, explica a quién pedir una contraseña nueva. |
+| Mi contraseña | `/cuentas/contrasena/` | Enlace «Mi contraseña» en el menú: cambia la propia dando la actual. |
 | Inicio | `/` | Botones grandes (Abrir caja, Escanear, Inventario, Reporte según el rol), cifras de productos y stock bajo; al administrador le muestra las **alertas** (stock bajo y «ya está disponible el reporte de…») con «Ver» y «Entendido». |
 | **Caja** | `/ventas/caja/` | Punto de venta (ver §4.2). El campo de escaneo mantiene el foco: el lector de código de barras «escribe» el código y presiona Enter. |
 | Ventas del día | `/ventas/` | Ventas de un día (hoy por omisión), total vendido, anuladas tachadas. |
@@ -67,7 +69,7 @@ Todas usan Bootstrap 5 y funcionan en computador y celular. Menú superior verde
 | Editar producto | `/productos/<id>/editar/` | Cambia datos y precio; **no** cambia el stock (eso va por entradas o ajustes). |
 | Ajuste de inventario | `/productos/<id>/ajustar/` | Conteo físico → el sistema calcula la diferencia. Motivos: diferencia de inventario, producto dañado, producto vencido, corrección administrativa. |
 | Categorías | `/productos/categorias/` | Crear categorías. |
-| Vendedores | `/cuentas/vendedores/` | Crear vendedores (correo único en toda la plataforma). |
+| Vendedores | `/cuentas/vendedores/` | Crear vendedores (correo único en toda la plataforma) y «Cambiar contraseña» de cada uno. |
 | Reporte | `/reportes/mensual/?mes=AAAA-MM` | Reporte mensual (ver §4.4). |
 | Indicadores | `/reportes/indicadores/?mes=AAAA-MM` | Los cuatro indicadores del piloto (ver §4.7). Por omisión, el mes en curso. |
 
@@ -75,7 +77,7 @@ Todas usan Bootstrap 5 y funcionan en computador y celular. Menú superior verde
 
 | Pantalla | Ruta | Qué hace |
 |---|---|---|
-| Almacenes | `/plataforma/almacenes/` | Lista de almacenes clientes y alta de uno nuevo: razón social, RUT (se valida el dígito verificador), dirección, plan, y nombre/correo/contraseña inicial del administrador. Crea todo o nada. |
+| Almacenes | `/plataforma/almacenes/` | Lista de almacenes clientes y alta de uno nuevo: razón social, RUT (se valida el dígito verificador), dirección, plan, y nombre/correo/contraseña inicial del administrador. Crea todo o nada. Abajo, la lista de administradores con «Cambiar contraseña». |
 
 ---
 
@@ -105,6 +107,13 @@ comprobante. Si algo falla, **no queda nada** registrado.
   navegador).
 - Se guarda la hora de **apertura** y de **confirmación** de cada venta (sirve para
   medir cuánto tarda una venta).
+- **Escaneos rápidos:** si se escanean varios productos seguidos, ninguno se pierde:
+  se buscan en orden y se ve «Buscando el producto…». «Cobrar» espera a que terminen.
+- **Si el sistema demora:** una búsqueda que tarda más de 8 s se corta con el aviso
+  «El sistema está demorando y el código … no se agregó: escanéalo de nuevo». El cobro,
+  en cambio, nunca se corta: a los 3 s avisa «No cierres esta pantalla ni cobres de
+  nuevo». Si se pierde la conexión al cobrar, avisa que hay que revisar «Ventas» antes
+  de cobrar otra vez (la venta pudo quedar registrada).
 
 ### 4.3 Anular venta (CU-03)
 Desde el comprobante, **administrador o vendedor**. Exige **motivo** (mínimo 5
@@ -117,6 +126,11 @@ stock vuelve con movimientos de entrada.
 ### 4.4 Reporte mensual (CU-04)
 Sólo administrador. Se elige el mes (por omisión, el último mes cerrado). Muestra:
 - **Ventas y total vendido** del mes (sólo ventas vigentes; las anuladas no cuentan).
+- **Gráfico «Lo vendido cada día»:** una barra por día del período, con el día de más
+  venta destacado y nombrado arriba. Al pasar el cursor, tocar o llegar con el teclado
+  a un día se ve el monto y las ventas; «Ver el detalle por día» abre lo mismo en tabla.
+  Un día sin barra es un día sin ventas. En un mes en curso o iniciado a mitad de mes
+  sólo aparecen los días del período, sin inventar días en cero.
 - **Productos más vendidos** (top 10 por unidades; los empates comparten lugar).
 - **Por día de la semana**, con **promedio por día** (un mes trae 4 o 5 de cada día).
 - **Por franja horaria:** Mañana 07:00–10:59 · Mediodía 11:00–13:59 · Tarde
@@ -139,6 +153,21 @@ Tareas programadas en Azure (WebJobs), hora de Chile:
 ### 4.6 Gestionar vendedor (CU-06)
 El administrador crea vendedores con nombre, correo y contraseña (con las reglas de
 seguridad de Django). Si el correo ya existe en cualquier almacén, lo rechaza.
+
+### 4.8 Contraseñas
+- **Cambiar la propia:** «Mi contraseña» en el menú; pide la actual.
+- **Olvidó la contraseña, sin correo:** el administrador asigna una nueva a un
+  vendedor (Vendedores → «Cambiar contraseña»); el operador, a un administrador
+  (Almacenes → Administradores). Nadie puede asignarse una a sí mismo por esta vía, y
+  el administrador sólo a los vendedores de su almacén. La sesión que esa persona
+  tuviera abierta se cierra. Queda registrado quién la cambió (no la contraseña).
+- **Olvidó la contraseña, por correo:** «¿Olvidaste tu contraseña?» envía un enlace
+  que sirve una vez y vence en una hora. La pantalla responde igual exista o no el
+  correo (no revela quién está registrado). Máximo 3 correos por dirección y hora.
+  Sólo funciona si se configuró el correo; si no, la pantalla explica a quién
+  pedírsela. Se envía con Azure Communication Services desde una dirección
+  `DoNotReply@….azurecomm.net` (dominio de prueba de Azure: puede caer en spam y
+  admite pocos correos por hora; para producción hace falta un dominio propio).
 
 ### 4.7 Indicadores
 Miden el efecto de TivoScanea en el almacén piloto. Cada tarjeta muestra el valor del
@@ -218,6 +247,12 @@ Si no hubo ventas o movimientos en el mes, la tarjeta lo dice en vez de mostrar 
   descuadra su serie de quiebres (todo lo demás pasa por los servicios).
 - No hay pantalla para «productos por revisar» de la alta rápida (se identifican por
   el motivo del ajuste).
+- Una contraseña asignada por el administrador no obliga a cambiarla al ingresar (el
+  modelo de datos no tiene ese campo). El tope de correos de recuperación es por
+  proceso del servidor, así que en la práctica puede llegar al doble.
+- No hay productos a granel (jamón, queso por peso): la cantidad vendida es siempre
+  en unidades enteras. **Decidido para la v2** (2026-11-14): exige cambiar el modelo
+  de datos (unidad de venta, cantidades en gramos) y el reporte.
 
 ---
 

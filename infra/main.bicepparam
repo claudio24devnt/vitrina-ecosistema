@@ -10,3 +10,7 @@ param enlazarDominio = bool(readEnvironmentVariable('TIVOSCANEA_ENLAZAR_DOMINIO'
 param claveBaseDatos = readEnvironmentVariable('TIVOSCANEA_CLAVE_BD')
 param ipAdministrador = readEnvironmentVariable('TIVOSCANEA_IP_ADMIN', '')
 param correoAlertas = readEnvironmentVariable('TIVOSCANEA_CORREO_ALERTAS', '')
+param acsEndpoint = readEnvironmentVariable('TIVOSCANEA_ACS_ENDPOINT', '')
+param correoSmtpHost = readEnvironmentVariable('TIVOSCANEA_SMTP_HOST', '')
+param correoSmtpUsuario = readEnvironmentVariable('TIVOSCANEA_SMTP_USUARIO', '')
+param correoRemitente = readEnvironmentVariable('TIVOSCANEA_CORREO_REMITENTE', '')

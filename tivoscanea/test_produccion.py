@@ -113,3 +113,29 @@ def test_collectstatic_de_produccion(tmp_path):
     manifiesto = (tmp_path / "staticfiles.json").read_text(encoding="utf-8")
     assert "vendor/bootstrap-5.3.8/bootstrap.min.css" in manifiesto
     assert list(tmp_path.glob("css/tivoscanea.*.css.gz"))
+
+
+def test_gunicorn_registra_cada_solicitud_con_su_duracion():
+    """gunicorn.conf.py: log de acceso a stdout con milisegundos, sin IP ni consulta."""
+    import runpy
+
+    config = runpy.run_path(str(RAIZ / "gunicorn.conf.py"))
+    assert config["accesslog"] == "-"
+    formato = config["access_log_format"]
+    assert "%(M)s" in formato  # duración en milisegundos
+    assert "%(U)s" in formato  # ruta sin la consulta
+    for dato_que_no_va in ("%(h)s", "%(q)s", "%(r)s", "%({cookie}i)s"):
+        assert dato_que_no_va not in formato
+
+
+def test_recuperacion_por_correo_solo_con_smtp_configurado():
+    assert _leer("RECUPERACION_POR_CORREO", **PRODUCCION) == "False"
+    con_smtp = {**PRODUCCION, "EMAIL_HOST": "smtp.ficticio.test"}
+    assert _leer("RECUPERACION_POR_CORREO", **con_smtp) == "True"
+    assert "smtp.EmailBackend" in _leer("EMAIL_BACKEND", **con_smtp)
+
+
+def test_con_acs_el_correo_va_por_la_identidad_administrada():
+    con_acs = {**PRODUCCION, "ACS_ENDPOINT": "https://acs-ficticio.communication.azure.com"}
+    assert _leer("EMAIL_BACKEND", **con_acs) == "'tivoscanea.correo_acs.CorreoACSBackend'"
+    assert _leer("RECUPERACION_POR_CORREO", **con_acs) == "True"

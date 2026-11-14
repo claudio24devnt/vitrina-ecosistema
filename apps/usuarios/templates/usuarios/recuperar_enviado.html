@@ -1,0 +1,18 @@
+{% extends "base.html" %}
+
+{% block titulo %}Revisa tu correo — TivoScanea{% endblock %}
+
+{% block contenido %}
+<div class="row justify-content-center mt-5">
+    <div class="col-sm-10 col-md-6 col-lg-4">
+        <div class="card shadow-sm">
+            <div class="card-body p-4">
+                <h1 class="h4 mb-3">Revisa tu correo</h1>
+                <p>Si ese correo está registrado en TivoScanea, te llegará un enlace para crear una contraseña nueva. Sirve una sola vez y durante una hora.</p>
+                <p class="small text-secondary">Si no aparece en unos minutos, revisa la carpeta de spam o pídele una contraseña nueva al administrador del almacén.</p>
+                <a href="{% url 'usuarios:login' %}" class="btn btn-success w-100">Volver a ingresar</a>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

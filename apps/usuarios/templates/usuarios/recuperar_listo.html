@@ -1,0 +1,16 @@
+{% extends "base.html" %}
+
+{% block titulo %}Contraseña cambiada — TivoScanea{% endblock %}
+
+{% block contenido %}
+<div class="row justify-content-center mt-5">
+    <div class="col-sm-10 col-md-6 col-lg-4">
+        <div class="card shadow-sm">
+            <div class="card-body p-4">
+                <h1 class="h4 mb-3">Listo, tu contraseña quedó cambiada</h1>
+                <a href="{% url 'usuarios:login' %}" class="btn btn-success w-100">Ingresar</a>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
