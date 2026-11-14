@@ -1,11 +1,13 @@
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
-from django.shortcuts import redirect, render
+from django.shortcuts import get_object_or_404, redirect, render
 
 from apps.inventario.models import Producto
 from apps.inventario.servicios import productos_con_stock_bajo
 from apps.reporteria.servicios import alertas_del_panel
 from apps.usuarios.decorators import operador_requerido
+from apps.usuarios.servicios import administradores_de_clientes
+from apps.usuarios.views import asignar_contrasena
 
 from .errores import ReglaDeNegocioError
 from .formularios import AltaAlmacenForm
@@ -54,5 +56,16 @@ def plataforma_almacenes(request):
     return render(
         request,
         "almacenes/plataforma.html",
-        {"form": form, "almacenes": almacenes_clientes()},
+        {
+            "form": form,
+            "almacenes": almacenes_clientes(),
+            "administradores": administradores_de_clientes(),
+        },
     )
+
+
+@operador_requerido
+def contrasena_administrador(request, id_usuario):
+    """El operador asigna una contraseña nueva al administrador de un almacén cliente."""
+    administrador = get_object_or_404(administradores_de_clientes(), pk=id_usuario)
+    return asignar_contrasena(request, administrador, "almacenes:plataforma")

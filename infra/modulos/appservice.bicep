@@ -22,6 +22,16 @@ param dominio string = ''
 param enlazarDominio bool = false
 param sku string = 'B1'
 
+// Correo saliente (recuperación de contraseña). Vacío = sin correo: la pantalla
+// «¿Olvidaste tu contraseña?» indica pedírsela al administrador.
+// Opción en uso: Azure Communication Services con la identidad administrada
+// (salidas de modulos/correo.bicep). Opción alternativa: SMTP, con la clave cargada a
+// mano en Key Vault como `correo-smtp-clave` (ver README).
+param acsEndpoint string = ''
+param correoSmtpHost string = ''
+param correoSmtpUsuario string = ''
+param correoRemitente string = ''
+
 resource plan 'Microsoft.Web/serverfarms@2023-12-01' = {
   name: 'asp-${nombre}'
   location: ubicacion
@@ -35,6 +45,20 @@ var referencia = '@Microsoft.KeyVault(VaultName=${nombreKeyVault};SecretName='
 var hostAzure = '${nombre}.azurewebsites.net'
 var hosts = empty(dominio) ? hostAzure : '${hostAzure},${dominio}'
 var origenes = empty(dominio) ? 'https://${hostAzure}' : 'https://${hostAzure},https://${dominio}'
+var ajustesAcs = empty(acsEndpoint) ? [] : [
+  { name: 'ACS_ENDPOINT', value: acsEndpoint }
+  { name: 'DEFAULT_FROM_EMAIL', value: correoRemitente }
+]
+var ajustesSmtp = empty(correoSmtpHost) ? [] : [
+  { name: 'EMAIL_HOST', value: correoSmtpHost }
+  { name: 'EMAIL_PORT', value: '587' }
+  { name: 'EMAIL_USE_TLS', value: 'True' }
+  { name: 'EMAIL_HOST_USER', value: correoSmtpUsuario }
+  { name: 'EMAIL_HOST_PASSWORD', value: '${referencia}correo-smtp-clave)' }
+  { name: 'DEFAULT_FROM_EMAIL', value: correoRemitente }
+]
+// Con ACS no se agrega el SMTP (ACS tiene prioridad también en settings.py).
+var ajustesCorreo = empty(acsEndpoint) ? ajustesSmtp : ajustesAcs
 
 resource sitio 'Microsoft.Web/sites@2023-12-01' = {
   name: nombre
@@ -61,7 +85,7 @@ resource sitio 'Microsoft.Web/sites@2023-12-01' = {
       // collectstatic también va aquí y no en la compilación (Oryx), donde las
       // referencias a Key Vault podrían no estar resueltas todavía.
       appCommandLine: 'python manage.py check --deploy --fail-level ERROR && python manage.py migrate --noinput && python manage.py collectstatic --noinput && gunicorn tivoscanea.wsgi --bind=0.0.0.0:8000 --workers=2 --timeout=60'
-      appSettings: [
+      appSettings: concat([
         { name: 'SCM_DO_BUILD_DURING_DEPLOYMENT', value: 'true' }
         { name: 'DISABLE_COLLECTSTATIC', value: 'true' }
         // WebJobs (webjobs/, publicados aparte): en Linux necesitan el agente de Kudu, y
@@ -82,7 +106,7 @@ resource sitio 'Microsoft.Web/sites@2023-12-01' = {
         { name: 'DB_PORT', value: '5432' }
         { name: 'DB_SSLMODE', value: 'require' }
         { name: 'DB_CONN_MAX_AGE', value: '60' }
-      ]
+      ], ajustesCorreo)
     }
   }
 }

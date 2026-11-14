@@ -3,7 +3,8 @@ Reporte mensual (CU-04) y alertas del panel (CU-05 y cierre de mes).
 
 El reporte se calcula al vuelo en PostgreSQL: agrupaciones y funciones de ventana
 (RANK, LAG, SUM(...) OVER ()), sin tablas precalculadas. A Python sólo llegan las
-filas ya agregadas (a lo más diez productos, siete días, las franjas y unos meses).
+filas ya agregadas (a lo más diez productos, siete días, las franjas, los días del mes
+y unos meses).
 """
 
 from dataclasses import dataclass, field
@@ -230,6 +231,75 @@ def mas_vendidos(almacen, mes):
     ]
 
 
+def ventas_por_dia(almacen, desde, hasta):
+    """
+    Lo vendido en cada día de [desde, hasta) (hora local). Trae todos los días del
+    período, también los sin ventas; los días fuera del período no se inventan en cero.
+    """
+    agregadas = {
+        fila["dia"]: fila
+        for fila in _ventas_vigentes(almacen, desde, hasta)
+        .annotate(dia=TruncDate("fecha_hora", tzinfo=ZONA_HORARIA_ALMACEN))
+        .values("dia")
+        .annotate(cantidad=Count("pk"), monto=Sum("total"))
+        .order_by("dia")
+    }
+    filas = []
+    fecha = desde
+    while fecha < hasta:
+        fila = agregadas.get(fecha, {})
+        filas.append(
+            {
+                "fecha": fecha,
+                "etiqueta": f"{NOMBRES_DIA[fecha.weekday()].lower()} {fecha.day}",
+                "cantidad": fila.get("cantidad", 0),
+                "monto": fila.get("monto") or Decimal("0"),
+            }
+        )
+        fecha += timedelta(days=1)
+    _marcar_mayor(filas, "monto")
+    return filas
+
+
+def _escala_del_eje(maximo):
+    """Paso y tope redondos del eje, en hasta cuatro divisiones: 45.000 -> 20.000 y 60.000."""
+    magnitud = 10 ** (len(str(maximo)) - 1)
+    for base in (magnitud // 10 or 1, magnitud, magnitud * 10):
+        for factor in (1, 2, 5):
+            paso = base * factor
+            divisiones = -(-maximo // paso)  # división hacia arriba
+            if divisiones <= 4:
+                return paso, paso * divisiones
+    raise AssertionError("magnitud * 10 siempre alcanza")  # pragma: no cover
+
+
+def armar_grafico_diario(filas):
+    """Alturas (% del tope), marcas del eje y rótulos del gráfico de ventas diarias."""
+    maximo = int(max((fila["monto"] for fila in filas), default=0)) or 1
+    paso, tope = _escala_del_eje(maximo)
+    barras = []
+    for indice, fila in enumerate(filas):
+        dia = fila["fecha"].day
+        # Cada cinco días, más el primero si no queda pegado al rótulo siguiente.
+        rotulada = dia % 5 == 0 or (indice == 0 and dia % 5 != 4)
+        barras.append(
+            {
+                **fila,
+                "altura": _porcentaje(fila["monto"], tope),
+                "rotulo": dia if rotulada else "",
+            }
+        )
+    return {
+        "barras": barras,
+        "marcas": [
+            {"monto": monto, "altura": _porcentaje(monto, tope)}
+            for monto in range(0, tope + 1, paso)
+        ],
+        "dias_mayores": ", ".join(f["etiqueta"] for f in filas if f["es_mayor"]),
+        "monto_mayor": max((fila["monto"] for fila in filas), default=Decimal("0")),
+    }
+
+
 def _dias_por_semana(desde, hasta):
     """Cuántos lunes, martes... hay en [desde, hasta): un mes tiene 4 o 5 de cada uno."""
     cuenta = [0] * 7
@@ -416,6 +486,7 @@ class ReporteMensual:
     cantidad_ventas: int = 0
     monto_total: Decimal = Decimal("0")
     mas_vendidos: list = field(default_factory=list)
+    por_dia: list = field(default_factory=list)
     por_dia_semana: list = field(default_factory=list)
     por_franja: list = field(default_factory=list)
     comparacion: list = field(default_factory=list)
@@ -429,6 +500,10 @@ class ReporteMensual:
     @property
     def mes_parcial(self):
         return self.desde != self.mes or self.hasta != mes_siguiente(self.mes)
+
+    @property
+    def grafico_diario(self):
+        return armar_grafico_diario(self.por_dia)
 
 
 def reporte_mensual(almacen, mes, hoy=None):
@@ -457,6 +532,7 @@ def reporte_mensual(almacen, mes, hoy=None):
     reporte.cantidad_ventas = totales["cantidad"]
     reporte.monto_total = totales["monto"]
     reporte.mas_vendidos = mas_vendidos(almacen, mes)
+    reporte.por_dia = ventas_por_dia(almacen, reporte.desde, reporte.hasta)
     reporte.por_dia_semana = ventas_por_dia_semana(almacen, reporte.desde, reporte.hasta)
     reporte.por_franja = ventas_por_franja(almacen, mes, mes_siguiente(mes))
     reporte.comparacion, reporte.motivo_sin_comparacion = comparacion_mensual(

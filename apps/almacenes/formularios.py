@@ -18,10 +18,21 @@ class FormularioBootstrap(forms.Form):
 
     def full_clean(self):
         super().full_clean()
-        for nombre in self.errors:
+        self._marcar_invalidos()
+
+    def add_error(self, field, error):
+        # También los errores que la vista agrega después de validar (p. ej. una regla
+        # de negocio): sin `is-invalid`, Bootstrap oculta el mensaje del campo.
+        super().add_error(field, error)
+        self._marcar_invalidos()
+
+    def _marcar_invalidos(self):
+        for nombre in self._errors or {}:
             if nombre in self.fields:
                 widget = self.fields[nombre].widget
-                widget.attrs["class"] = f"{widget.attrs.get('class', '')} is-invalid".strip()
+                clases = widget.attrs.get("class", "").split()
+                if "is-invalid" not in clases:
+                    widget.attrs["class"] = " ".join([*clases, "is-invalid"])
 
 
 class AltaAlmacenForm(FormularioBootstrap):

@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+
+{% block titulo %}Contraseña nueva — TivoScanea{% endblock %}
+
+{% block contenido %}
+<div class="row justify-content-center mt-5">
+    <div class="col-sm-10 col-md-6 col-lg-4">
+        <div class="card shadow-sm">
+            <div class="card-body p-4">
+                {% if validlink %}
+                    <h1 class="h4 mb-3">Crea tu contraseña nueva</h1>
+                    <form method="post" novalidate>
+                        {% csrf_token %}
+                        {% include "_campos_formulario.html" %}
+                        <button type="submit" class="btn btn-success w-100">Guardar contraseña</button>
+                    </form>
+                {% else %}
+                    <h1 class="h4 mb-3">Este enlace ya no sirve</h1>
+                    <p>Ya se usó o pasó más de una hora desde que se envió.</p>
+                    <a href="{% url 'usuarios:recuperar' %}" class="btn btn-success w-100">Pedir otro enlace</a>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

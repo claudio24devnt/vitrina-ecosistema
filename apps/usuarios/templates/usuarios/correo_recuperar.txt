@@ -1,0 +1,11 @@
+{% autoescape off %}Hola {{ user.nombre }}:
+
+Pediste crear una contraseña nueva para ingresar a TivoScanea con {{ user.email }}.
+Abre este enlace (sirve una sola vez y durante una hora):
+
+{{ protocol }}://{{ domain }}{% url 'usuarios:recuperar_confirmar' uidb64=uid token=token %}
+
+Si no lo pediste tú, ignora este correo: tu contraseña sigue siendo la misma.
+
+TivoScanea
+{% endautoescape %}

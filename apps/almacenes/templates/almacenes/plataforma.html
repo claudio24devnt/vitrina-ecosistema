@@ -40,6 +40,23 @@
         {% else %}
         <div class="alert alert-light border">Todavía no hay almacenes clientes.</div>
         {% endif %}
+
+        {% if administradores %}
+        <h2 class="h5 mt-4">Administradores</h2>
+        <p class="small text-secondary">Si un administrador olvidó su contraseña, asígnale una nueva y entrégasela en persona.</p>
+        <ul class="list-group shadow-sm">
+            {% for administrador in administradores %}
+            <li class="list-group-item d-flex flex-wrap justify-content-between align-items-center gap-2">
+                <span>
+                    {{ administrador.nombre }}
+                    <span class="d-block small text-secondary">{{ administrador.id_almacen.razon_social }} · {{ administrador.email }}</span>
+                </span>
+                <a href="{% url 'almacenes:contrasena_administrador' administrador.pk %}"
+                   class="btn btn-outline-secondary btn-sm">Cambiar contraseña</a>
+            </li>
+            {% endfor %}
+        </ul>
+        {% endif %}
     </div>
 </div>
 {% endblock %}

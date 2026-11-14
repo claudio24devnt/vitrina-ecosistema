@@ -23,10 +23,21 @@
     const errorVenta = document.getElementById("error-venta");
     const csrf = document.querySelector("input[name=csrfmiddlewaretoken]").value;
 
+    // Búsqueda de un código: si el servidor no responde en este plazo, se avisa y el
+    // código se puede volver a escanear. El cobro NO tiene plazo: cortar la espera de
+    // una venta que el servidor quizás ya registró invitaría a cobrarla dos veces.
+    const LIMITE_BUSQUEDA_MS = 8000;
+    // Si el cobro tarda más que esto, se avisa que se sigue esperando.
+    const AVISO_COBRO_LENTO_MS = 3000;
+
     // id_producto -> { producto, cantidad, altaRapida, fila }
     const lineas = new Map();
     let horaInicio = null; // apertura de la venta: indicador «tiempo de registro»
-    let ocupado = false;
+    // Códigos escaneados que esperan su búsqueda. El lector teclea más rápido de lo que
+    // responde el servidor: ningún escaneo se descarta, se buscan en orden.
+    const cola = [];
+    let buscando = false;
+    let cobrando = false;
     let codigoPendiente = null;
 
     function pesos(monto) {
@@ -57,8 +68,14 @@
         errorVenta.hidden = true;
     }
 
-    async function pedir(url, opciones) {
-        const respuesta = await fetch(url, Object.assign({ credentials: "same-origin" }, opciones));
+    // `limiteMs` corta la espera con un error "TimeoutError" (sólo para lecturas o
+    // escrituras que se pueden repetir sin duplicar nada).
+    async function pedir(url, opciones, limiteMs) {
+        const config = Object.assign({ credentials: "same-origin" }, opciones);
+        if (limiteMs) {
+            config.signal = AbortSignal.timeout(limiteMs);
+        }
+        const respuesta = await fetch(url, config);
         let datos = {};
         try {
             datos = await respuesta.json();
@@ -68,16 +85,24 @@
         return { estado: respuesta.status, datos: datos };
     }
 
-    function postJSON(url, cuerpoJSON) {
-        return pedir(url, {
-            method: "POST",
-            headers: {
-                "Content-Type": "application/json",
-                Accept: "application/json",
-                "X-CSRFToken": csrf,
+    function postJSON(url, cuerpoJSON, limiteMs) {
+        return pedir(
+            url,
+            {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                    Accept: "application/json",
+                    "X-CSRFToken": csrf,
+                },
+                body: JSON.stringify(cuerpoJSON),
             },
-            body: JSON.stringify(cuerpoJSON),
-        });
+            limiteMs
+        );
+    }
+
+    function esPlazoVencido(error) {
+        return error && (error.name === "TimeoutError" || error.name === "AbortError");
     }
 
     // ---- Detalle de la venta -------------------------------------------------
@@ -96,7 +121,20 @@
         });
         totalVista.textContent = pesos(total);
         sinLineas.hidden = lineas.size > 0;
-        botonCobrar.disabled = lineas.size === 0;
+        actualizarBotonCobrar();
+    }
+
+    function hayBusquedasPendientes() {
+        return buscando || cola.length > 0;
+    }
+
+    // No se cobra mientras falten productos por buscar: quedarían fuera de la venta.
+    // Con el panel de diferencias abierto, el botón lo controla la casilla.
+    function actualizarBotonCobrar() {
+        if (cobrando || !panelDiferencias.hidden) {
+            return;
+        }
+        botonCobrar.disabled = lineas.size === 0 || hayBusquedasPendientes();
     }
 
     function cambiarCantidad(id, nueva) {
@@ -153,6 +191,7 @@
             linea.fila.remove();
         });
         lineas.clear();
+        cola.length = 0; // lo que se escaneó para esta venta ya no corresponde
         horaInicio = null;
         cerrarAlta();
         limpiarConfirmacion();
@@ -173,34 +212,87 @@
     }
 
     function cerrarAlta() {
+        const estabaAbierta = !panelAlta.hidden;
         panelAlta.hidden = true;
         codigoPendiente = null;
+        if (estabaAbierta) {
+            // Lo escaneado mientras se registraba el producto nuevo sigue en la cola.
+            procesarCola();
+        }
     }
 
-    async function escanear(codigo) {
-        if (ocupado) {
+    function mostrarBuscando() {
+        const enEspera = cola.length;
+        mostrarAviso(
+            "secondary",
+            "Buscando el producto…" + (enEspera ? " (" + enEspera + " más en espera)" : "")
+        );
+    }
+
+    function escanear(codigo) {
+        cola.push(codigo);
+        actualizarBotonCobrar();
+        procesarCola();
+    }
+
+    // Busca los códigos de la cola de a uno. Se detiene si hay que registrar un
+    // producto nuevo (el panel de alta toma el foco) y sigue al cerrarse el panel.
+    async function procesarCola() {
+        if (buscando) {
             return;
         }
-        ocupado = true;
+        buscando = true;
+        // Los problemas de la tanda se muestran juntos al final: un escaneo que sale
+        // bien después de uno fallido no debe borrar el aviso del fallido.
+        const problemas = [];
         try {
-            const r = await pedir(raiz.dataset.urlBuscar.replace("CODIGO", encodeURIComponent(codigo)), {
-                headers: { Accept: "application/json" },
-            });
-            if (r.estado === 200) {
+            while (cola.length > 0 && panelAlta.hidden) {
+                const codigo = cola.shift();
+                mostrarBuscando();
+                const problema = await buscarUno(codigo);
+                if (problema) {
+                    problemas.push(problema);
+                }
+            }
+        } finally {
+            buscando = false;
+            if (problemas.length > 0) {
+                mostrarAviso("danger", problemas.join(" "));
+            } else if (panelAlta.hidden && aviso.textContent.startsWith("Buscando")) {
                 mostrarAviso();
-                cerrarAlta();
+            }
+            actualizarBotonCobrar();
+            enfocar();
+        }
+    }
+
+    // Devuelve null si el código se resolvió (agregado o abierto el alta rápida), o el
+    // texto del problema para mostrarlo al vendedor.
+    async function buscarUno(codigo) {
+        try {
+            const r = await pedir(
+                raiz.dataset.urlBuscar.replace("CODIGO", encodeURIComponent(codigo)),
+                { headers: { Accept: "application/json" } },
+                LIMITE_BUSQUEDA_MS
+            );
+            if (r.estado === 200) {
                 agregar(r.datos.producto, false);
-            } else if (r.estado === 404) {
+                return null;
+            }
+            if (r.estado === 404) {
                 mostrarAviso();
                 abrirAlta(codigo);
-            } else {
-                mostrarAviso("danger", "No se pudo buscar el producto. Intenta de nuevo.");
+                return null;
             }
+            if (r.estado === 403) {
+                return "Tu sesión se cerró. Vuelve a ingresar para seguir vendiendo.";
+            }
+            return "No se pudo buscar el código " + codigo + ": escanéalo de nuevo.";
         } catch (e) {
-            mostrarAviso("danger", "No hay conexión con el sistema. Revisa internet e intenta de nuevo.");
-        } finally {
-            ocupado = false;
-            enfocar();
+            if (esPlazoVencido(e)) {
+                return "El sistema está demorando y el código " + codigo + " no se agregó: escanéalo de nuevo.";
+            }
+            return "No hay conexión con el sistema: el código " + codigo + " no se agregó. Revisa internet.";
         }
     }
 
@@ -217,11 +309,12 @@
         const boton = formularioAlta.querySelector("button[type=submit]");
         boton.disabled = true;
         try {
-            const r = await postJSON(raiz.dataset.urlAltaRapida, {
-                codigo_barras: codigoPendiente,
-                nombre: nombre,
-                precio: precio,
-            });
+            // Con plazo: si se repite, el servidor responde 409 con el ya creado.
+            const r = await postJSON(
+                raiz.dataset.urlAltaRapida,
+                { codigo_barras: codigoPendiente, nombre: nombre, precio: precio },
+                LIMITE_BUSQUEDA_MS
+            );
             if (r.estado === 201) {
                 cerrarAlta();
                 agregar(r.datos.producto, true);
@@ -236,7 +329,9 @@
                 error.hidden = false;
             }
         } catch (e) {
-            error.textContent = "No hay conexión con el sistema. El producto no se registró.";
+            error.textContent = esPlazoVencido(e)
+                ? "El sistema está demorando. Aprieta «Registrar» de nuevo."
+                : "No hay conexión con el sistema. El producto no se registró.";
             error.hidden = false;
         } finally {
             boton.disabled = false;
@@ -271,12 +366,25 @@
     });
 
     async function cobrar() {
-        if (ocupado || lineas.size === 0) {
+        if (cobrando || lineas.size === 0) {
             return;
         }
-        ocupado = true;
+        if (hayBusquedasPendientes()) {
+            mostrarAviso("warning", "Espera un momento: todavía se están buscando productos.");
+            return;
+        }
+        cobrando = true;
         botonCobrar.disabled = true;
         errorVenta.hidden = true;
+        const textoBoton = botonCobrar.textContent;
+        botonCobrar.textContent = "Registrando la venta…";
+        // Sin plazo (ver LIMITE_BUSQUEDA_MS): sólo se avisa que se sigue esperando.
+        const avisoLento = setTimeout(function () {
+            errorVenta.className = "alert alert-warning";
+            errorVenta.textContent =
+                "El sistema está demorando. No cierres esta pantalla ni cobres de nuevo: espera la respuesta.";
+            errorVenta.hidden = false;
+        }, AVISO_COBRO_LENTO_MS);
         const medio = document.querySelector("input[name=medio_pago]:checked");
         const cuerpoVenta = {
             lineas: Array.from(lineas.values()).map(function (l) {
@@ -286,25 +394,45 @@
             hora_inicio: horaInicio,
             confirmar_diferencias: !panelDiferencias.hidden && confirmo.checked,
         };
+        let r;
         try {
-            const r = await postJSON(raiz.dataset.urlVenta, cuerpoVenta);
-            if (r.estado === 201) {
-                window.location.assign(r.datos.url_comprobante + "?nueva=1");
-                return;
-            }
-            if (r.estado === 409 && r.datos.requiere_confirmacion) {
-                mostrarDiferencias(r.datos.diferencias);
-            } else {
-                errorVenta.textContent = r.datos.detalle || "No se pudo registrar la venta. No se descontó stock.";
-                errorVenta.hidden = false;
-                botonCobrar.disabled = false;
-            }
+            r = await postJSON(raiz.dataset.urlVenta, cuerpoVenta);
         } catch (e) {
-            errorVenta.textContent = "No hay conexión con el sistema. La venta NO se registró; intenta de nuevo.";
-            errorVenta.hidden = false;
+            // La solicitud pudo llegar al servidor antes de cortarse la conexión.
+            terminarCobro(
+                avisoLento,
+                textoBoton,
+                "Se perdió la conexión y no sabemos si la venta quedó registrada. " +
+                    "Revisa «Ventas» antes de cobrar de nuevo."
+            );
+            return;
+        }
+        if (r.estado === 201) {
+            clearTimeout(avisoLento);
+            window.location.assign(r.datos.url_comprobante + "?nueva=1");
+            return;
+        }
+        if (r.estado === 409 && r.datos.requiere_confirmacion) {
+            terminarCobro(avisoLento, textoBoton, null);
+            mostrarDiferencias(r.datos.diferencias);
+            return;
+        }
+        terminarCobro(
+            avisoLento,
+            textoBoton,
+            r.datos.detalle || "No se pudo registrar la venta. No se descontó stock."
+        );
+    }
+
+    function terminarCobro(avisoLento, textoBoton, mensajeError) {
+        clearTimeout(avisoLento);
+        cobrando = false;
+        botonCobrar.textContent = textoBoton;
+        errorVenta.className = "alert alert-danger";
+        errorVenta.hidden = !mensajeError;
+        if (mensajeError) {
+            errorVenta.textContent = mensajeError;
             botonCobrar.disabled = false;
-        } finally {
-            ocupado = false;
         }
     }
 

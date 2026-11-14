@@ -142,6 +142,47 @@ se despliega `main.bicep` sin esa variable, las alertas existentes no se borran)
 Limitación: si la aplicación está tan caída que no publica métricas, la alerta de
 salud no tiene datos y no se dispara; cubre caídas de la app con el plan en pie.
 
+### Correo para recuperar la contraseña (desplegado el 2026-11-14)
+
+Sin correo, «¿Olvidaste tu contraseña?» explica que la nueva la asigna el
+administrador (a sus vendedores, en «Vendedores») o el operador (a los
+administradores, en «Almacenes»). Con correo, además se envía un enlace de un solo
+uso que vence en una hora (máximo 3 correos por dirección y hora).
+
+**En uso: Azure Communication Services con la identidad administrada**
+(`modulos/correo.bicep`, `tivoscanea/correo_acs.py`). Sin SMTP ni clave: el SMTP de
+ACS exige un registro de aplicación en Entra ID y el tenant de INACAP no permite
+crearlos (`allowedToCreateApps = false`). El dominio es el administrado por Azure
+(`DoNotReply@<guid>.azurecomm.net`): **sólo para pruebas**, con un límite de pocos
+correos por hora y sin aumento de cuota. Para producción, dominio propio verificado
+(SPF/DKIM) agregado al mismo servicio de correo. Costo: fracciones de centavo por correo.
+
+```powershell
+az provider register -n Microsoft.Communication --wait      # una vez por suscripción
+az deployment group create -g rg-tivoscanea -n correo -f infra/modulos/correo.bicep `
+  -p prefijo=tivoscanea nombreApp=<app>
+# Con las salidas endpoint y remitente:
+az webapp config appsettings set -g rg-tivoscanea -n <app> --settings `
+  ACS_ENDPOINT=<endpoint> "DEFAULT_FROM_EMAIL=<remitente>"
+# Para que un despliegue completo de main.bicep las conserve:
+$env:TIVOSCANEA_ACS_ENDPOINT = "<endpoint>"; $env:TIVOSCANEA_CORREO_REMITENTE = "<remitente>"
+```
+
+**Alternativa: SMTP** de cualquier proveedor con puerto 587 y STARTTLS (App Service
+bloquea el 25):
+
+```powershell
+az keyvault secret set --vault-name $kv -n correo-smtp-clave --value "<clave SMTP>"
+$env:TIVOSCANEA_SMTP_HOST = "smtp.proveedor.example"
+$env:TIVOSCANEA_SMTP_USUARIO = "<usuario SMTP>"
+$env:TIVOSCANEA_CORREO_REMITENTE = "TivoScanea <no-responder@dominio>"
+az deployment group create -g rg-tivoscanea -n main -f infra/main.bicep -p infra/main.bicepparam
+```
+
+Cargar el secreto **antes** de desplegar: la referencia a Key Vault se resuelve al
+arrancar. Igual que con `django-secret-key`, hay que abrir Key Vault a la IP propia
+para cargarlo (pasos 4 y 5).
+
 ### Fase 2 (opcional): dominio propio
 
 1. En el DNS del dominio: `CNAME app → <salida hostApp>` y

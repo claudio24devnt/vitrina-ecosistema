@@ -74,6 +74,7 @@
                 </ul>
                 <div class="d-flex align-items-center gap-3 text-white">
                     <span class="small">{{ user.nombre }} · {{ user.get_rol_display }}</span>
+                    <a href="{% url 'usuarios:cambiar_contrasena' %}" class="small link-light">Mi contraseña</a>
                     <form action="{% url 'usuarios:logout' %}" method="post" class="m-0">
                         {% csrf_token %}
                         <button type="submit" class="btn btn-outline-light btn-sm">Salir</button>
