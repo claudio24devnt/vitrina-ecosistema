@@ -1,0 +1,17 @@
+{% autoescape on %}<!DOCTYPE html>
+<html lang="es-CL">
+<body style="margin:0;padding:24px;background:#f4f6f5;font-family:Arial,Helvetica,sans-serif;color:#212529;">
+  <div style="max-width:480px;margin:0 auto;background:#ffffff;border-radius:8px;padding:24px;">
+    <p style="font-size:20px;font-weight:bold;color:#198754;margin:0 0 16px;">TivoScanea</p>
+    <p>Hola {{ user.nombre }}:</p>
+    <p>Pediste crear una contraseña nueva para ingresar a TivoScanea con {{ user.email }}.</p>
+    <p style="text-align:center;margin:28px 0;">
+      <a href="{{ protocol }}://{{ domain }}{% url 'usuarios:recuperar_confirmar' uidb64=uid token=token %}"
+         style="background:#198754;color:#ffffff;text-decoration:none;padding:12px 24px;border-radius:6px;font-weight:bold;display:inline-block;">Crear contraseña nueva</a>
+    </p>
+    <p style="font-size:14px;color:#6c757d;">El enlace sirve una sola vez y durante una hora. Si el botón no funciona, copia esta dirección en el navegador:<br>
+      {{ protocol }}://{{ domain }}{% url 'usuarios:recuperar_confirmar' uidb64=uid token=token %}</p>
+    <p style="font-size:14px;color:#6c757d;">Si no lo pediste tú, ignora este correo: tu contraseña sigue siendo la misma.</p>
+  </div>
+</body>
+</html>{% endautoescape %}

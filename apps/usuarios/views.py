@@ -117,6 +117,9 @@ class RecuperarContrasenaView(auth_views.PasswordResetView):
     form_class = RecuperarContrasenaForm
     template_name = "usuarios/recuperar.html"
     email_template_name = "usuarios/correo_recuperar.txt"
+    # Versión HTML con un botón: en texto plano, que el enlace se pueda abrir depende
+    # del programa de correo. El texto plano se mantiene para los que no muestran HTML.
+    html_email_template_name = "usuarios/correo_recuperar.html"
     subject_template_name = "usuarios/correo_recuperar_asunto.txt"
     success_url = reverse_lazy("usuarios:recuperar_enviado")
 
