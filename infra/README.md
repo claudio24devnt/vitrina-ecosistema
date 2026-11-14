@@ -183,6 +183,17 @@ Cargar el secreto **antes** de desplegar: la referencia a Key Vault se resuelve 
 arrancar. Igual que con `django-secret-key`, hay que abrir Key Vault a la IP propia
 para cargarlo (pasos 4 y 5).
 
+### Presupuesto (desplegado el 2026-11-14)
+
+`modulos/presupuesto.bicep`: USD 20/mes para el grupo de recursos, aviso por el grupo de
+acciones del monitoreo al 80 % del gasto real y al 100 % del pronóstico. Sólo avisa: no
+corta nada. Gasto medido: ~USD 0,45/día. Con Azure for Students, si el crédito se acaba
+la suscripción se deshabilita (ver `docs/PLAN_PRESENTACION.md`).
+
+```powershell
+az deployment group create -g rg-tivoscanea -n presupuesto -f infra/modulos/presupuesto.bicep
+```
+
 ### Fase 2 (opcional): dominio propio
 
 1. En el DNS del dominio: `CNAME app → <salida hostApp>` y

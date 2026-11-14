@@ -132,6 +132,7 @@ def restablecer_contrasena(*, autor, usuario, password):
     _validar_contrasena(password, usuario)
     usuario.set_password(password)
     usuario.save(update_fields=["password"])
+    limpiar_ingresos_fallidos(usuario.email)
     registro_seguridad.info(
         "Contraseña restablecida: usuario %s (almacén %s) por usuario %s",
         usuario.pk,
@@ -160,17 +161,82 @@ def administradores_de_clientes():
 MAX_CORREOS_RECUPERACION_POR_HORA = 3
 
 
+def _huella(email):
+    """El correo no se guarda tal cual en la caché ni en el log."""
+    return hashlib.sha256((email or "").strip().lower().encode()).hexdigest()
+
+
+def _sumar(clave, ventana_segundos):
+    """Suma 1 al contador `clave`, que se borra solo al pasar la ventana."""
+    cache.add(clave, 0, timeout=ventana_segundos)
+    try:
+        return cache.incr(clave)
+    except ValueError:  # venció justo entre add e incr
+        cache.set(clave, 1, timeout=ventana_segundos)
+        return 1
+
+
 def admitir_correo_de_recuperacion(email):
     """True si todavía se puede enviar un correo de recuperación a `email` esta hora."""
-    huella = hashlib.sha256((email or "").strip().lower().encode()).hexdigest()
-    clave = f"recuperacion:{huella}"
-    cache.add(clave, 0, timeout=60 * 60)
-    try:
-        enviados = cache.incr(clave)
-    except ValueError:  # venció justo entre add e incr
-        cache.set(clave, 1, timeout=60 * 60)
-        enviados = 1
+    enviados = _sumar(f"recuperacion:{_huella(email)}", 60 * 60)
     return enviados <= MAX_CORREOS_RECUPERACION_POR_HORA
+
+
+# Intentos de ingreso fallidos (OWASP A07: fuerza bruta). Por correo, para proteger
+# una cuenta; por IP, para frenar a quien prueba muchas cuentas. Mientras dura el
+# bloqueo no se calcula el hash: también evita gastar ~3 s de CPU del B1 por intento.
+# Misma limitación que los correos: caché por proceso de gunicorn.
+MAX_INGRESOS_FALLIDOS_POR_CORREO = 5
+MAX_INGRESOS_FALLIDOS_POR_IP = 20
+VENTANA_INGRESOS_SEGUNDOS = 15 * 60
+
+
+def ip_del_cliente(request):
+    """
+    IP del cliente detrás del frontal de App Service, que la agrega al final de
+    X-Forwarded-For como «ip:puerto». Se toma la última: las anteriores las puede
+    inventar el cliente.
+    """
+    reenviada = request.META.get("HTTP_X_FORWARDED_FOR", "")
+    ip = reenviada.split(",")[-1].strip() if reenviada else request.META.get("REMOTE_ADDR", "")
+    if ip.startswith("["):  # IPv6 con puerto: [::1]:1234
+        return ip[1:].split("]")[0]
+    if ip.count(":") == 1:  # IPv4 con puerto
+        return ip.split(":")[0]
+    return ip
+
+
+def _claves_de_ingreso(email, ip):
+    return f"ingreso:correo:{_huella(email)}", f"ingreso:ip:{ip}"
+
+
+def ingreso_bloqueado(email, ip):
+    por_correo, por_ip = _claves_de_ingreso(email, ip)
+    return (cache.get(por_correo, 0) >= MAX_INGRESOS_FALLIDOS_POR_CORREO) or (
+        cache.get(por_ip, 0) >= MAX_INGRESOS_FALLIDOS_POR_IP
+    )
+
+
+def registrar_ingreso_fallido(email, ip):
+    por_correo, por_ip = _claves_de_ingreso(email, ip)
+    fallidos_correo = _sumar(por_correo, VENTANA_INGRESOS_SEGUNDOS)
+    fallidos_ip = _sumar(por_ip, VENTANA_INGRESOS_SEGUNDOS)
+    if (
+        fallidos_correo == MAX_INGRESOS_FALLIDOS_POR_CORREO
+        or fallidos_ip == MAX_INGRESOS_FALLIDOS_POR_IP
+    ):
+        registro_seguridad.warning(
+            "Ingreso bloqueado %s min: correo %s, IP %s",
+            VENTANA_INGRESOS_SEGUNDOS // 60,
+            _huella(email)[:12],
+            ip,
+        )
+
+
+def limpiar_ingresos_fallidos(email):
+    """Tras ingresar bien o cambiar la contraseña, la cuenta parte de cero."""
+    por_correo, _ = _claves_de_ingreso(email, "")
+    cache.delete(por_correo)
 
 
 # ---- Eliminar y desactivar vendedores (CU-06) --------------------------------------

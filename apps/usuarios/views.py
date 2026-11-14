@@ -24,6 +24,7 @@ from .servicios import (
     cambiar_estado_vendedor,
     crear_vendedor,
     eliminar_vendedor,
+    limpiar_ingresos_fallidos,
     puede_restablecer,
     restablecer_contrasena,
     vendedor_tiene_historial,
@@ -202,6 +203,11 @@ class RecuperarConfirmarView(auth_views.PasswordResetConfirmView):
     form_class = ContrasenaRecuperadaForm
     template_name = "usuarios/recuperar_confirmar.html"
     success_url = reverse_lazy("usuarios:recuperar_listo")
+
+    def form_valid(self, form):
+        # Con la contraseña nueva, el bloqueo por intentos fallidos ya no aplica.
+        limpiar_ingresos_fallidos(form.user.email)
+        return super().form_valid(form)
 
 
 class RecuperarListoView(auth_views.PasswordResetCompleteView):

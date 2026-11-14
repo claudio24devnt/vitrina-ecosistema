@@ -1,4 +1,4 @@
-from datetime import date
+from datetime import date, timedelta
 
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
@@ -9,6 +9,7 @@ from django.views.decorators.http import require_POST
 
 from apps.almacenes.errores import ReglaDeNegocioError
 from apps.almacenes.models import ZONA_HORARIA_ALMACEN
+from apps.reporteria.servicios import inicio_del_dia
 
 from .forms import AnularVentaForm
 from .models import DetalleVenta, EstadoVenta, MedioPago, Venta
@@ -31,21 +32,21 @@ def _fecha_consultada(request):
 @login_required
 def ventas_del_dia(request):
     fecha = _fecha_consultada(request)
+    # Rango [medianoche, medianoche siguiente) en hora local y no `fecha_hora__date`:
+    # el rango sobre la columna usa el índice ix_venta_fecha; la función de fecha no.
+    del_dia = Venta.objects.del_almacen(request.almacen).filter(
+        fecha_hora__gte=inicio_del_dia(fecha),
+        fecha_hora__lt=inicio_del_dia(fecha + timedelta(days=1)),
+    )
     ventas = (
-        Venta.objects.del_almacen(request.almacen)
-        .filter(fecha_hora__date=fecha)
-        .select_related("id_usuario")
+        del_dia.select_related("id_usuario")
         .annotate(unidades=Sum("detalles__cantidad"))
         .order_by("-fecha_hora")
     )
-    resumen = (
-        Venta.objects.del_almacen(request.almacen)
-        .filter(fecha_hora__date=fecha)
-        .aggregate(
-            cantidad=Count("pk", filter=Q(estado=EstadoVenta.VIGENTE)),
-            total=Sum("total", filter=Q(estado=EstadoVenta.VIGENTE)),
-            anuladas=Count("pk", filter=Q(estado=EstadoVenta.ANULADA)),
-        )
+    resumen = del_dia.aggregate(
+        cantidad=Count("pk", filter=Q(estado=EstadoVenta.VIGENTE)),
+        total=Sum("total", filter=Q(estado=EstadoVenta.VIGENTE)),
+        anuladas=Count("pk", filter=Q(estado=EstadoVenta.ANULADA)),
     )
     return render(
         request,

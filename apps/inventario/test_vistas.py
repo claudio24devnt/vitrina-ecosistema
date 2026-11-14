@@ -277,3 +277,46 @@ class TestPaginas:
         )
         assert respuesta.status_code == 302
         assert respuesta.url == reverse("inicio")
+
+
+@pytest.mark.django_db
+class TestInventarioPaginado:
+    def _crear(self, almacen, cantidad, prefijo="Producto Ficticio"):
+        Producto.objects.del_almacen(almacen).bulk_create(
+            [
+                Producto(
+                    id_almacen=almacen,
+                    codigo_barras=f"78100000{i:05d}",
+                    nombre=f"{prefijo} {i:03d}",
+                    precio=Decimal("500"),
+                )
+                for i in range(cantidad)
+            ]
+        )
+
+    def test_pagina_de_a_50_sin_repetir_ni_perder_productos(self, client, datos_a):
+        from apps.inventario.views import PRODUCTOS_POR_PAGINA
+
+        self._crear(datos_a.almacen, PRODUCTOS_POR_PAGINA + 10)
+        client.force_login(datos_a.admin)
+        url = reverse("inventario:lista_productos")
+        primera = client.get(url)
+        segunda = client.get(url, {"pagina": 2})
+        nombres_1 = [p.nombre for p in primera.context["productos"]]
+        nombres_2 = [p.nombre for p in segunda.context["productos"]]
+        assert len(nombres_1) == PRODUCTOS_POR_PAGINA
+        assert len(nombres_2) == 11  # 10 nuevos + la bebida de conftest
+        assert not set(nombres_1) & set(nombres_2)
+        assert "Siguiente" in primera.content.decode()
+        # Una página que no existe muestra la última, sin error.
+        assert client.get(url, {"pagina": 99}).context["pagina"].number == 2
+
+    def test_los_enlaces_conservan_la_busqueda(self, client, datos_a):
+        from apps.inventario.views import PRODUCTOS_POR_PAGINA
+
+        self._crear(datos_a.almacen, PRODUCTOS_POR_PAGINA + 5)
+        client.force_login(datos_a.admin)
+        html = client.get(
+            reverse("inventario:lista_productos"), {"q": "Ficticio", "pagina": 1}
+        ).content.decode()
+        assert "?q=Ficticio&amp;pagina=2" in html

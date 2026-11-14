@@ -107,6 +107,16 @@ def usuario_de(almacen, rol=RolUsuario.ADMIN):
 
 
 @pytest.fixture(autouse=True)
+def cache_limpia():
+    """Los contadores de intentos y correos viven en la caché: cada prueba parte de cero."""
+    from django.core.cache import cache
+
+    cache.clear()
+    yield
+    cache.clear()
+
+
+@pytest.fixture(autouse=True)
 def hasher_rapido(settings):
     # PBKDF2 con su costo real hace que cada usuario de prueba tarde ~1 s.
     settings.PASSWORD_HASHERS = ["django.contrib.auth.hashers.MD5PasswordHasher"]

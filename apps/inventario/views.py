@@ -1,5 +1,6 @@
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
+from django.core.paginator import Paginator
 from django.db.models import Q
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
@@ -22,6 +23,9 @@ from .servicios import (
 
 solo_admin = rol_requerido(RolUsuario.ADMIN)
 
+# Filas por página del inventario: la lista no crece sin límite con el catálogo.
+PRODUCTOS_POR_PAGINA = 50
+
 
 @login_required
 def lista_productos(request):
@@ -39,11 +43,20 @@ def lista_productos(request):
         )
 
     total_stock_bajo = productos_con_stock_bajo(request.almacen).count()
+    # Orden total (nombre y luego id) para que ningún producto salte entre páginas.
+    pagina = Paginator(productos.order_by("nombre", "pk"), PRODUCTOS_POR_PAGINA).get_page(
+        request.GET.get("pagina")
+    )
+    # Los enlaces de página conservan la búsqueda y el filtro.
+    filtros = request.GET.copy()
+    filtros.pop("pagina", None)
     return render(
         request,
         "inventario/lista_productos.html",
         {
-            "productos": productos,
+            "productos": pagina.object_list,
+            "pagina": pagina,
+            "filtros": filtros.urlencode(),
             "busqueda": busqueda,
             "solo_stock_bajo": solo_stock_bajo,
             "total_stock_bajo": total_stock_bajo,
