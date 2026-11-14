@@ -19,7 +19,7 @@ Se escribió el 2026-11-14 con datos medidos ese día.
 
 | Cuándo | Qué | Quién |
 |---|---|---|
-| Ahora | Revisar el saldo del crédito (§3) y anotarlo aquí | Autor |
+| 14/11 (hecho) | Saldo del crédito: **USD 77,91** (estimado tras cargos pendientes USD 71,23). Alcanza holgado hasta el 30/12 (~USD 27 de gasto) | Autor |
 | 1 de diciembre | Revisar el saldo de nuevo. Si queda menos de USD 15, decidir el pago (§3) | Autor |
 | Hasta el viernes 11/12 | Último despliegue con cambios. Correr la prueba de carga y `verificar_produccion.py` | Autor + asistente |
 | Sábado 12/12 | Crear la etiqueta `presentacion-2026-12-15` sobre lo desplegado (`git tag`) | Asistente |
@@ -32,6 +32,7 @@ Se escribió el 2026-11-14 con datos medidos ese día.
 
 - **Azure for Students no admite cargar saldo** (no se le pueden «poner USD 20»). El saldo
   se ve en https://www.microsoftazuresponsorships.com/Balance con la cuenta de INACAP.
+- **Saldo al 14/11: USD 77,91** (se lee con la API de facturación, `credits/balanceSummary` del perfil de facturación, o en el sitio de abajo). El crédito sobrante vence el 30/12: no se acumula.
 - **Para el 15/12 no hace falta pagar** si el saldo alcanza: desde hoy hasta el 30/12
   son ~46 días × USD 0,45 ≈ **USD 21**. Si el saldo es mayor a USD 25, no hacer nada.
 - **Si el saldo es menor**, o para seguir después del 30/12 (piloto), la opción es
