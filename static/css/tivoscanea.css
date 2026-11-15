@@ -88,6 +88,11 @@
     color: var(--bs-secondary-color);
 }
 
+/* Inventario: la descripción ocupa una línea; completa al pasar el mouse (title). */
+.descripcion-producto {
+    max-width: 22rem;
+}
+
 /* Comprobante: al imprimir sólo sale el comprobante (sirve en impresora térmica). */
 @media print {
     .navbar,

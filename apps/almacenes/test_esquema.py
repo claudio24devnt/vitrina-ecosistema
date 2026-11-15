@@ -43,6 +43,9 @@ COLUMNAS = {
         "stock_minimo": ("integer", False),
         "fecha_creacion": ("timestamp with time zone", False),
         "id_usuario_creacion": ("bigint", True),
+        "descripcion": ("character varying(300)", True),
+        "contenido": ("numeric(8,2)", True),
+        "unidad_contenido": ("character varying(10)", True),
     },
     "venta": {
         "id_venta": ("bigint", False),
@@ -111,6 +114,8 @@ RESTRICCIONES = {
     "uq_categoria",
     "uq_producto",
     "ck_producto_stock_actual",
+    "ck_producto_contenido_coherente",
+    "ck_producto_unidad_contenido",
     "ck_venta_estado",
     "ck_venta_anulacion_coherente",
     "ck_venta_anulacion_posterior",
@@ -200,3 +205,21 @@ def test_defaults_en_la_base_de_datos():
         RETURNING activo, fecha_alta IS NOT NULL, hora_limite_anulacion::text
         """)
     assert fila == (True, True, "23:59:00")
+
+
+@pytest.mark.django_db
+def test_restricciones_del_contenido_del_producto():
+    """Las CHECK del contenido (2026-11-15) dicen lo que el brief acordó."""
+    filas = dict(
+        _consultar(
+            "SELECT conname, pg_get_constraintdef(oid) FROM pg_constraint "
+            "WHERE conname IN (%s, %s)",
+            ["ck_producto_contenido_coherente", "ck_producto_unidad_contenido"],
+        )
+    )
+    coherente = filas["ck_producto_contenido_coherente"]
+    assert "contenido IS NULL" in coherente and "unidad_contenido IS NULL" in coherente
+    assert "contenido > (0)" in coherente
+    unidad = filas["ck_producto_unidad_contenido"]
+    for valor in ("'g'", "'kg'", "'ml'", "'L'", "'m'", "'un'"):
+        assert valor in unidad

@@ -144,7 +144,9 @@ class TestAlertasEnElPanel:
         client.force_login(admin)
         html = client.get(reverse("inicio")).content.decode()
         assert alerta.mensaje in html
-        assert "?stock_bajo=1" in html
+        # Enlace al inventario filtrado (2026-11-15: ?stock=bajo; ?stock_bajo=1 sigue
+        # funcionando, ver apps/inventario/test_vistas.py).
+        assert "?stock=bajo" in html
 
         respuesta = client.post(reverse("reporteria:marcar_vista", args=[alerta.pk]))
         assert respuesta.status_code == 302

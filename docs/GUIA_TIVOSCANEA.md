@@ -58,15 +58,15 @@ Todas usan Bootstrap 5 y funcionan en computador y celular. Menú superior verde
 | **Caja** | `/ventas/caja/` | Punto de venta (ver §4.2). El campo de escaneo mantiene el foco: el lector de código de barras «escribe» el código y presiona Enter. |
 | Ventas del día | `/ventas/` | Ventas de un día (hoy por omisión), total vendido, anuladas tachadas. |
 | Comprobante | `/ventas/<n>/` | Comprobante imprimible de una venta; dice en lugar visible **«Comprobante interno de venta — no es boleta electrónica»**. Desde aquí se anula. |
-| Inventario | `/productos/` | Lista con búsqueda y filtro «sólo stock bajo», de a 50 productos por página («Anterior»/«Siguiente» conservan la búsqueda). El vendedor sólo consulta. |
+| Inventario | `/productos/` | Lista de a 50 productos por página. **Buscar** por nombre, código de barras o descripción (cada palabra escrita debe aparecer; distingue tildes: «jabon» no encuentra «Jabón»). Filtros: **categoría** (incluye «Sin categoría», donde quedan los de alta rápida), **stock** (todos / stock bajo / sin stock) y **orden** (nombre, menos stock primero, menor precio primero). «Anterior»/«Siguiente» conservan búsqueda, filtros y orden; si nada coincide lo dice y ofrece «Limpiar filtros». Cada producto muestra su contenido junto al nombre («· 350 ml») y su descripción en una línea. El vendedor busca y filtra igual, pero sólo consulta. |
 
 ### Sólo administrador
 
 | Pantalla | Ruta | Qué hace |
 |---|---|---|
 | Escanear producto | `/productos/escanear/` | Escanear un código: si existe, muestra el producto y permite **sumar stock**; si no, lleva al alta con el código ya puesto. |
-| Nuevo producto | `/productos/nuevo/` | Código, nombre, categoría, precio, stock mínimo, stock inicial. |
-| Editar producto | `/productos/<id>/editar/` | Cambia datos y precio; **no** cambia el stock (eso va por entradas o ajustes). |
+| Nuevo producto | `/productos/nuevo/` | Código, nombre, descripción (opcional), contenido y unidad (opcional), categoría **o una categoría nueva escrita ahí mismo**, precio, stock mínimo, stock inicial. |
+| Editar producto | `/productos/<id>/editar/` | Cambia datos, precio, descripción, contenido y categoría (también puede crear una nueva); **no** cambia el stock (eso va por entradas o ajustes). |
 | Ajuste de inventario | `/productos/<id>/ajustar/` | Conteo físico → el sistema calcula la diferencia. Motivos: diferencia de inventario, producto dañado, producto vencido, corrección administrativa. |
 | Categorías | `/productos/categorias/` | Crear categorías. |
 | Vendedores | `/cuentas/vendedores/` | Crear vendedores (correo único en toda la plataforma); por cada uno: «Cambiar contraseña», «Desactivar»/«Reactivar» y «Eliminar» (ver §4.6). |
@@ -90,6 +90,20 @@ El stock inicial queda registrado como un movimiento de **entrada**.
 - Código **ya registrado**: no se duplica; avisa «Ese código de barras ya está
   registrado en *Categoría*» y ofrece **sumar stock**.
 - El código de barras es único **por almacén** (dos almacenes pueden tener el mismo).
+- **Categoría nueva sin salir del formulario** (2026-11-15): bajo el selector hay un
+  campo «… o crea una categoría nueva». Se crea junto con el producto: si el alta
+  falla, la categoría tampoco queda. Si el nombre ya existe (sin importar mayúsculas
+  ni espacios de más, «  bebidas » = «Bebidas»), **se usa la existente** y el mensaje
+  de éxito lo dice («La categoría «Bebidas» ya existía y se usó esa»). Elegir una de
+  la lista **y** escribir una nueva da el error «Elige una categoría de la lista o
+  escribe una nueva, pero no las dos a la vez».
+- **Descripción** (opcional, hasta 300 caracteres): sabor, variedad, marca.
+- **Contenido** (opcional): cantidad y unidad del envase, p. ej. 350 ml, 1,5 L, 1 kg,
+  6 unidades. Unidades: g, kg, ml (cc), L, m, unidades. Acepta coma decimal. Van las
+  dos o ninguna. Es sólo informativo: **no** es venta por peso (eso es v2), no cambia
+  stock ni ventas. Se ve en el inventario, en la caja junto al nombre y en el
+  comprobante.
+- La alta rápida de la caja no pide descripción ni contenido; se completan editando.
 
 ### 4.2 Registrar venta (CU-02) — el caso crítico
 Escanear cada producto → se arma el detalle → total → medio de pago (efectivo,
@@ -222,7 +236,7 @@ Si no hubo ventas o movimientos en el mes, la tarjeta lo dice en vez de mostrar 
 |---|---|
 | `almacen` | Razón social, RUT, plan, dirección, plazo de anulación |
 | `usuario` | Nombre, correo, rol (admin/vendedor), almacén |
-| `categoria`, `producto` | Catálogo: código de barras, precio, stock actual y mínimo, autor del alta |
+| `categoria`, `producto` | Catálogo: código de barras, precio, stock actual y mínimo, autor del alta; descripción y contenido (cantidad + unidad) opcionales |
 | `venta`, `detalle_venta` | Ventas con total, medio de pago, estado, datos de anulación |
 | `movimiento_stock` | Bitácora de entradas, salidas y ajustes (con motivo) |
 | `franja_horaria` | Franjas del reporte, por almacén |
@@ -264,7 +278,12 @@ Si no hubo ventas o movimientos en el mes, la tarjeta lo dice en vez de mostrar 
   proceso del servidor, así que en la práctica puede llegar al doble.
 - No hay productos a granel (jamón, queso por peso): la cantidad vendida es siempre
   en unidades enteras. **Decidido para la v2** (2026-11-14): exige cambiar el modelo
-  de datos (unidad de venta, cantidades en gramos) y el reporte.
+  de datos (unidad de venta, cantidades en gramos) y el reporte. El «contenido» del
+  producto (350 ml, 1 kg) es sólo descriptivo y no cambia esto.
+- La búsqueda del inventario distingue tildes («cafe» no encuentra «Café»). Quitarlo
+  exige la extensión `unaccent` de PostgreSQL; no está instalada.
+- El comprobante muestra el contenido **actual** del producto, no el que tenía al
+  momento de la venta (igual que el nombre).
 
 ---
 

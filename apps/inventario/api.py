@@ -19,6 +19,11 @@ class ProductoSerializer(serializers.ModelSerializer):
     categoria = serializers.CharField(source="id_categoria.nombre", default=None)
     precio = serializers.IntegerField()
     stock_bajo = serializers.BooleanField()
+    # «350 ml» o null: descriptivo, para que la caja distinga variantes del mismo nombre.
+    contenido = serializers.SerializerMethodField()
+
+    def get_contenido(self, producto):
+        return producto.contenido_texto or None
 
     class Meta:
         model = Producto
@@ -26,6 +31,7 @@ class ProductoSerializer(serializers.ModelSerializer):
             "id_producto",
             "codigo_barras",
             "nombre",
+            "contenido",
             "categoria",
             "precio",
             "stock_actual",

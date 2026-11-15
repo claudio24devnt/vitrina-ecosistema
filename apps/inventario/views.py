@@ -1,7 +1,6 @@
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.core.paginator import Paginator
-from django.db.models import Q
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.utils.http import urlencode
@@ -10,12 +9,19 @@ from apps.almacenes.errores import ReglaDeNegocioError
 from apps.usuarios.decorators import rol_requerido
 from apps.usuarios.models import RolUsuario
 
-from .forms import AjusteInventarioForm, CategoriaForm, NuevoProductoForm, ProductoForm
+from .forms import (
+    AjusteInventarioForm,
+    CategoriaForm,
+    FiltroInventarioForm,
+    NuevoProductoForm,
+    ProductoForm,
+)
 from .models import Categoria, Producto
 from .servicios import (
     CodigoDuplicadoError,
     actualizar_producto,
     crear_categoria,
+    filtrar_productos,
     productos_con_stock_bajo,
     registrar_ajuste_por_conteo,
     registrar_producto,
@@ -29,39 +35,48 @@ PRODUCTOS_POR_PAGINA = 50
 
 @login_required
 def lista_productos(request):
-    """Inventario: ambos roles lo consultan; sólo el administrador ve las acciones."""
-    busqueda = request.GET.get("q", "").strip()
-    solo_stock_bajo = request.GET.get("stock_bajo") == "1"
-    if solo_stock_bajo:
-        productos = productos_con_stock_bajo(request.almacen)
-    else:
-        productos = Producto.objects.del_almacen(request.almacen)
-    productos = productos.select_related("id_categoria")
-    if busqueda:
-        productos = productos.filter(
-            Q(nombre__icontains=busqueda) | Q(codigo_barras__icontains=busqueda)
-        )
+    """
+    Inventario: ambos roles lo consultan; sólo el administrador ve las acciones. La
+    búsqueda y los filtros los decide `filtrar_productos`; la vista sólo los lee del GET.
+    """
+    datos = request.GET.copy()
+    # Enlaces antiguos del panel y marcadores: «?stock_bajo=1» es «?stock=bajo».
+    if datos.pop("stock_bajo", None) == ["1"] and not datos.get("stock"):
+        datos["stock"] = "bajo"
+    filtro = FiltroInventarioForm(datos, almacen=request.almacen)
+    criterios = filtro.criterios()
+    productos = filtrar_productos(request.almacen, **criterios)
 
     total_stock_bajo = productos_con_stock_bajo(request.almacen).count()
-    # Orden total (nombre y luego id) para que ningún producto salte entre páginas.
-    pagina = Paginator(productos.order_by("nombre", "pk"), PRODUCTOS_POR_PAGINA).get_page(
-        request.GET.get("pagina")
+    pagina = Paginator(productos, PRODUCTOS_POR_PAGINA).get_page(datos.get("pagina"))
+    # Los enlaces de página conservan la búsqueda, los filtros y el orden.
+    datos.pop("pagina", None)
+    hay_filtros = bool(
+        criterios["texto"] or criterios["categoria"] or criterios["stock"] != "todos"
     )
-    # Los enlaces de página conservan la búsqueda y el filtro.
-    filtros = request.GET.copy()
-    filtros.pop("pagina", None)
     return render(
         request,
         "inventario/lista_productos.html",
         {
             "productos": pagina.object_list,
             "pagina": pagina,
-            "filtros": filtros.urlencode(),
-            "busqueda": busqueda,
-            "solo_stock_bajo": solo_stock_bajo,
+            "filtros": datos.urlencode(),
+            "filtro": filtro,
+            "hay_filtros": hay_filtros,
+            "solo_stock_bajo": criterios["stock"] == "bajo",
             "total_stock_bajo": total_stock_bajo,
         },
     )
+
+
+def _aviso_categoria(producto, datos):
+    """Texto extra del mensaje de éxito cuando se escribió una categoría nueva."""
+    if not (datos.get("categoria_nueva") or "").strip() or producto.id_categoria is None:
+        return ""
+    nombre = producto.id_categoria.nombre
+    if producto.categoria_creada:
+        return f" Se creó la categoría «{nombre}»."
+    return f" La categoría «{nombre}» ya existía y se usó esa."
 
 
 @solo_admin
@@ -85,8 +100,12 @@ def nuevo_producto(request):
                     nombre=datos["nombre"],
                     precio=datos["precio"],
                     categoria=datos["categoria"],
+                    categoria_nueva=datos["categoria_nueva"],
                     stock_minimo=datos["stock_minimo"],
                     stock_inicial=datos["stock_inicial"],
+                    descripcion=datos["descripcion"],
+                    contenido=datos["contenido"],
+                    unidad_contenido=datos["unidad_contenido"],
                 )
             except CodigoDuplicadoError as error:
                 # CU-01 2a: no se duplica; se lleva al usuario a sumar stock al existente.
@@ -99,7 +118,7 @@ def nuevo_producto(request):
                 messages.success(
                     request,
                     f"Producto «{producto.nombre}» registrado con "
-                    f"{producto.stock_actual} unidades.",
+                    f"{producto.stock_actual} unidades.{_aviso_categoria(producto, datos)}",
                 )
                 return redirect("inventario:escanear")
     else:
@@ -124,12 +143,20 @@ def editar_producto(request, id_producto):
                     nombre=datos["nombre"],
                     precio=datos["precio"],
                     categoria=datos["categoria"],
+                    categoria_nueva=datos["categoria_nueva"],
                     stock_minimo=datos["stock_minimo"],
+                    descripcion=datos["descripcion"],
+                    contenido=datos["contenido"],
+                    unidad_contenido=datos["unidad_contenido"],
                 )
             except ReglaDeNegocioError as error:
                 form.add_error(None, str(error))
             else:
-                messages.success(request, f"Producto «{producto.nombre}» actualizado.")
+                messages.success(
+                    request,
+                    f"Producto «{producto.nombre}» actualizado."
+                    f"{_aviso_categoria(producto, datos)}",
+                )
                 return redirect("inventario:lista_productos")
     else:
         form = ProductoForm(
@@ -140,6 +167,9 @@ def editar_producto(request, id_producto):
                 "categoria": producto.id_categoria_id,
                 "precio": producto.precio,
                 "stock_minimo": producto.stock_minimo,
+                "descripcion": producto.descripcion or "",
+                "contenido": producto.contenido_cifra,
+                "unidad_contenido": producto.unidad_contenido or "",
             },
         )
     return render(
