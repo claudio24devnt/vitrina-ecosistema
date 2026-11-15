@@ -1,7 +1,7 @@
 from decimal import Decimal
 
 import pytest
-from django.db import IntegrityError, transaction
+from django.db import DataError, IntegrityError, transaction
 from django.db.models import ProtectedError
 
 from apps.inventario.models import Categoria, MovimientoStock, Producto
@@ -65,3 +65,57 @@ class TestRestriccionesInventario:
         sobre_el_minimo = _producto(almacen, codigo_barras="2", stock_actual=3, stock_minimo=2)
         assert en_el_minimo.stock_bajo is True
         assert sobre_el_minimo.stock_bajo is False
+
+
+@pytest.mark.django_db
+class TestDescripcionYContenido:
+    """2026-11-15: datos descriptivos opcionales; el contenido no es venta por peso."""
+
+    def test_sin_descripcion_ni_contenido_es_valido(self, almacen):
+        producto = _producto(almacen)
+        producto.refresh_from_db()
+        assert (producto.descripcion, producto.contenido, producto.unidad_contenido) == (
+            None,
+            None,
+            None,
+        )
+        assert producto.contenido_texto == ""
+
+    def test_contenido_con_unidad_es_valido(self, almacen):
+        producto = _producto(almacen, contenido=Decimal("1.5"), unidad_contenido="L")
+        producto.refresh_from_db()
+        assert producto.contenido == Decimal("1.50")
+
+    @pytest.mark.parametrize(
+        "campos",
+        [
+            {"contenido": Decimal("350")},
+            {"unidad_contenido": "ml"},
+            {"contenido": Decimal("0"), "unidad_contenido": "ml"},
+            {"contenido": Decimal("-1"), "unidad_contenido": "g"},
+        ],
+    )
+    def test_contenido_incoherente_es_rechazado(self, almacen, campos):
+        with pytest.raises(IntegrityError, match="ck_producto_contenido_coherente"):
+            _producto(almacen, **campos)
+
+    def test_unidad_fuera_de_la_lista_es_rechazada(self, almacen):
+        with pytest.raises(IntegrityError, match="ck_producto_unidad_contenido"):
+            _producto(almacen, contenido=Decimal("350"), unidad_contenido="cc")
+
+    def test_descripcion_de_mas_de_300_caracteres_es_rechazada(self, almacen):
+        with pytest.raises(DataError):
+            _producto(almacen, descripcion="x" * 301)
+
+    @pytest.mark.parametrize(
+        "contenido, unidad, texto",
+        [
+            (Decimal("350"), "ml", "350 ml"),
+            (Decimal("1.50"), "L", "1,5 L"),
+            (Decimal("0.25"), "kg", "0,25 kg"),
+            (Decimal("6"), "un", "6 unidades"),
+            (Decimal("1"), "un", "1 unidad"),
+        ],
+    )
+    def test_contenido_en_texto(self, contenido, unidad, texto):
+        assert Producto(contenido=contenido, unidad_contenido=unidad).contenido_texto == texto

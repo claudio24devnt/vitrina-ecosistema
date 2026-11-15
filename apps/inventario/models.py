@@ -1,3 +1,5 @@
+from decimal import Decimal
+
 from django.conf import settings
 from django.db import models
 from django.db.models import Q
@@ -23,6 +25,21 @@ class Categoria(ModeloDeAlmacen):
 
     def __str__(self):
         return self.nombre
+
+
+class UnidadContenido(models.TextChoices):
+    """
+    Unidad del contenido del envase (2026-11-15). Lista cerrada
+    (ck_producto_unidad_contenido): cada unidad nueva es una migración. Sin «cc»: es
+    lo mismo que ml y dos nombres para una unidad complican agrupar en la v2.
+    """
+
+    GRAMOS = "g", "g"
+    KILOS = "kg", "kg"
+    MILILITROS = "ml", "ml (cc)"
+    LITROS = "L", "L"
+    METROS = "m", "m"
+    UNIDADES = "un", "unidades"
 
 
 class Producto(ModeloDeAlmacen):
@@ -60,6 +77,21 @@ class Producto(ModeloDeAlmacen):
         blank=True,
         db_index=False,
     )
+    # 2026-11-15: datos descriptivos opcionales. El contenido («350 ml», «1 kg») no es
+    # venta por peso (v2): no toca stock, detalle de venta ni movimientos.
+    descripcion = models.CharField(
+        max_length=300, null=True, blank=True, db_column="descripcion"
+    )
+    contenido = models.DecimalField(
+        max_digits=8, decimal_places=2, null=True, blank=True, db_column="contenido"
+    )
+    unidad_contenido = models.CharField(
+        max_length=10,
+        choices=UnidadContenido.choices,
+        null=True,
+        blank=True,
+        db_column="unidad_contenido",
+    )
 
     class Meta:
         db_table = "producto"
@@ -74,6 +106,19 @@ class Producto(ModeloDeAlmacen):
             models.CheckConstraint(
                 condition=models.Q(stock_actual__gte=0), name="ck_producto_stock_actual"
             ),
+            # Contenido y unidad van juntos: un «350» sin unidad no dice nada. El
+            # `contenido IS NOT NULL` explícito no sobra: `NULL > 0` es NULL y un CHECK
+            # con NULL se cumple, así que sin él pasaría una unidad sin contenido.
+            models.CheckConstraint(
+                condition=Q(contenido__isnull=True, unidad_contenido__isnull=True)
+                | Q(contenido__isnull=False, contenido__gt=0, unidad_contenido__isnull=False),
+                name="ck_producto_contenido_coherente",
+            ),
+            models.CheckConstraint(
+                condition=Q(unidad_contenido__isnull=True)
+                | Q(unidad_contenido__in=UnidadContenido.values),
+                name="ck_producto_unidad_contenido",
+            ),
         ]
         indexes = [models.Index(fields=["codigo_barras"], name="ix_producto_codigo")]
 
@@ -83,6 +128,26 @@ class Producto(ModeloDeAlmacen):
     @property
     def stock_bajo(self):
         return self.stock_actual <= self.stock_minimo
+
+    @property
+    def contenido_cifra(self):
+        """350.00 -> «350»; 1.50 -> «1,5» (coma decimal, como en Chile)."""
+        if self.contenido is None:
+            return ""
+        numero = Decimal(self.contenido)
+        if numero == numero.to_integral_value():
+            return f"{int(numero)}"
+        return f"{numero.normalize():f}".replace(".", ",")
+
+    @property
+    def contenido_texto(self):
+        """«350 ml», «1,5 L», «6 unidades», «1 unidad»; vacío si no tiene contenido."""
+        if self.contenido is None or not self.unidad_contenido:
+            return ""
+        cifra = self.contenido_cifra
+        if self.unidad_contenido == UnidadContenido.UNIDADES:
+            return f"{cifra} unidad" if Decimal(self.contenido) == 1 else f"{cifra} unidades"
+        return f"{cifra} {self.unidad_contenido}"
 
 
 class TipoMovimiento(models.TextChoices):

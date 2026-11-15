@@ -10,7 +10,7 @@
 <div class="alert {% if alerta.tipo == 'stock_bajo' %}alert-warning{% else %}alert-info{% endif %} d-flex flex-wrap align-items-center gap-2">
     <span class="me-auto">{{ alerta.mensaje }}</span>
     {% if alerta.tipo == 'stock_bajo' %}
-    <a href="{% url 'inventario:lista_productos' %}?stock_bajo=1" class="btn btn-sm btn-warning">Ver productos</a>
+    <a href="{% url 'inventario:lista_productos' %}?stock=bajo" class="btn btn-sm btn-warning">Ver productos</a>
     {% else %}
     <a href="{% url 'reporteria:reporte_mensual' %}?mes={{ alerta.fecha_referencia|date:'Y-m' }}" class="btn btn-sm btn-info">Ver reporte</a>
     {% endif %}
@@ -58,7 +58,7 @@
         </div>
     </div>
     <div class="col-6 col-md-3">
-        <a href="{% url 'inventario:lista_productos' %}?stock_bajo=1" class="text-decoration-none">
+        <a href="{% url 'inventario:lista_productos' %}?stock=bajo" class="text-decoration-none">
             <div class="card h-100 {% if total_stock_bajo %}border-warning{% endif %}">
                 <div class="card-body">
                     <div class="text-secondary small">Con stock bajo</div>

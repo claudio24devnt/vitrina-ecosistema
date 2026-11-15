@@ -39,7 +39,7 @@
                         {% for detalle in detalles %}
                         <tr>
                             <td>
-                                {{ detalle.id_producto.nombre }}
+                                {{ detalle.id_producto.nombre }}{% if detalle.id_producto.contenido_texto %} · {{ detalle.id_producto.contenido_texto }}{% endif %}
                                 <div class="small text-secondary">{{ detalle.cantidad }} × {{ detalle.precio_unitario|pesos }}</div>
                             </td>
                             <td class="text-end">{{ detalle.subtotal|pesos }}</td>

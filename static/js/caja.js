@@ -159,7 +159,8 @@
             return;
         }
         const fila = document.getElementById("plantilla-linea").content.firstElementChild.cloneNode(true);
-        fila.querySelector('[data-campo="nombre"]').textContent = producto.nombre;
+        fila.querySelector('[data-campo="nombre"]').textContent =
+            producto.contenido ? producto.nombre + " · " + producto.contenido : producto.nombre;
         fila.querySelector('[data-campo="precio"]').textContent = pesos(producto.precio);
         fila.querySelector('[data-campo="aviso-nuevo"]').hidden = !altaRapida;
         const id = producto.id_producto;

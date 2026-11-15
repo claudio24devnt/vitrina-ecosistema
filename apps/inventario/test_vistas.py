@@ -320,3 +320,264 @@ class TestInventarioPaginado:
             reverse("inventario:lista_productos"), {"q": "Ficticio", "pagina": 1}
         ).content.decode()
         assert "?q=Ficticio&amp;pagina=2" in html
+
+
+def _datos_alta(**cambios):
+    datos = {
+        "codigo_barras": "7801111222233",
+        "nombre": "Té Ficticio",
+        "descripcion": "",
+        "contenido": "",
+        "unidad_contenido": "",
+        "categoria": "",
+        "categoria_nueva": "",
+        "precio": "1490",
+        "stock_minimo": "2",
+        "stock_inicial": "8",
+    }
+    datos.update(cambios)
+    return datos
+
+
+@pytest.mark.django_db
+class TestFormularioDeProductoMejorado:
+    """2026-11-15: descripción, contenido y categoría nueva sin salir del formulario."""
+
+    def _producto(self, almacen):
+        return Producto.objects.del_almacen(almacen).get(codigo_barras="7801111222233")
+
+    def test_alta_con_descripcion_contenido_con_coma_y_categoria_nueva(self, client, datos_a):
+        client.force_login(datos_a.admin)
+        respuesta = client.post(
+            reverse("inventario:nuevo_producto"),
+            _datos_alta(
+                descripcion="Hojas de té negro",
+                contenido="1,5",
+                unidad_contenido="kg",
+                categoria_nueva="Infusiones",
+            ),
+            follow=True,
+        )
+        assert "Se creó la categoría «Infusiones»" in respuesta.content.decode()
+        producto = self._producto(datos_a.almacen)
+        assert producto.descripcion == "Hojas de té negro"
+        assert producto.contenido_texto == "1,5 kg"
+        assert producto.id_categoria.nombre == "Infusiones"
+        assert producto.stock_actual == 8
+
+    def test_categoria_nueva_que_ya_existe_usa_la_existente(self, client, datos_a):
+        client.force_login(datos_a.admin)
+        respuesta = client.post(
+            reverse("inventario:nuevo_producto"),
+            _datos_alta(categoria_nueva="bebidas"),
+            follow=True,
+        )
+        assert "«Bebidas» ya existía y se usó esa" in respuesta.content.decode()
+        assert self._producto(datos_a.almacen).id_categoria == datos_a.categoria
+
+    def test_elegir_y_escribir_categoria_muestra_el_error_en_el_campo(self, client, datos_a):
+        client.force_login(datos_a.admin)
+        respuesta = client.post(
+            reverse("inventario:nuevo_producto"),
+            _datos_alta(categoria=datos_a.categoria.pk, categoria_nueva="Infusiones"),
+        )
+        assert respuesta.status_code == 200
+        form = respuesta.context["form"]
+        assert "no las dos a la vez" in form.errors["categoria_nueva"][0]
+        assert "is-invalid" in form.fields["categoria_nueva"].widget.attrs["class"]
+        assert (
+            not Producto.objects.del_almacen(datos_a.almacen)
+            .filter(codigo_barras="7801111222233")
+            .exists()
+        )
+
+    def test_contenido_sin_unidad_marca_la_unidad(self, client, datos_a):
+        client.force_login(datos_a.admin)
+        respuesta = client.post(
+            reverse("inventario:nuevo_producto"), _datos_alta(contenido="350")
+        )
+        assert "unidad_contenido" in respuesta.context["form"].errors
+
+    def test_editar_precarga_y_guarda_los_datos_nuevos(self, client, datos_a):
+        Producto.objects.del_almacen(datos_a.almacen).filter(pk=datos_a.producto.pk).update(
+            descripcion="Retornable", contenido=Decimal("1.50"), unidad_contenido="L"
+        )
+        client.force_login(datos_a.admin)
+        url = reverse("inventario:editar_producto", args=[datos_a.producto.pk])
+        inicial = client.get(url).context["form"].initial
+        assert (inicial["descripcion"], inicial["contenido"], inicial["unidad_contenido"]) == (
+            "Retornable",
+            "1,5",
+            "L",
+        )
+        client.post(
+            url,
+            _datos_alta(
+                codigo_barras=datos_a.producto.codigo_barras,
+                nombre="Bebida Ficticia A",
+                categoria_nueva="Gaseosas",
+                contenido="2",
+                unidad_contenido="L",
+            ),
+        )
+        datos_a.producto.refresh_from_db()
+        assert datos_a.producto.contenido_texto == "2 L"
+        assert datos_a.producto.descripcion is None
+        assert datos_a.producto.id_categoria.nombre == "Gaseosas"
+        assert datos_a.producto.stock_actual == 10
+
+    def test_alta_rapida_de_la_caja_no_pide_descripcion_ni_contenido(self, client, datos_a):
+        client.force_login(datos_a.vendedor)
+        respuesta = client.post(
+            reverse("api:alta_rapida"),
+            {"codigo_barras": "7809990000011", "nombre": "Nuevo Ficticio", "precio": 500},
+            content_type="application/json",
+        )
+        assert respuesta.status_code == 201
+        assert respuesta.json()["producto"]["contenido"] is None
+        producto = Producto.objects.del_almacen(datos_a.almacen).get(
+            codigo_barras="7809990000011"
+        )
+        assert (producto.descripcion, producto.contenido, producto.id_categoria) == (
+            None,
+            None,
+            None,
+        )
+
+
+@pytest.mark.django_db
+class TestContenidoEnLaCaja:
+    def test_la_api_entrega_el_contenido_en_texto(self, client, datos_a):
+        Producto.objects.del_almacen(datos_a.almacen).filter(pk=datos_a.producto.pk).update(
+            contenido=Decimal("350"), unidad_contenido="ml"
+        )
+        client.force_login(datos_a.vendedor)
+        datos = client.get(_url_codigo(datos_a.producto.codigo_barras)).json()
+        assert datos["producto"]["contenido"] == "350 ml"
+
+    def test_el_comprobante_muestra_el_contenido(self, client, datos_a):
+        Producto.objects.del_almacen(datos_a.almacen).filter(pk=datos_a.producto.pk).update(
+            contenido=Decimal("350"), unidad_contenido="ml"
+        )
+        client.force_login(datos_a.vendedor)
+        html = client.get(
+            reverse("ventas:comprobante", args=[datos_a.venta.pk])
+        ).content.decode()
+        assert "Bebida Ficticia A · 350 ml" in html
+
+
+@pytest.mark.django_db
+class TestBusquedaYFiltrosDelInventario:
+    @pytest.fixture
+    def catalogo(self, datos_a):
+        crear = Producto.objects.del_almacen(datos_a.almacen).create
+        crear(
+            codigo_barras="7803000000014",
+            nombre="Detergente Ficticio",
+            descripcion="Aroma lavanda",
+            contenido=Decimal("3"),
+            unidad_contenido="L",
+            precio=Decimal("2500"),
+            stock_actual=0,
+            stock_minimo=1,
+        )
+        crear(codigo_barras="2900000000024", nombre="Pan Ficticio", precio=Decimal("150"))
+        return datos_a
+
+    def _nombres(self, respuesta):
+        return [p.nombre for p in respuesta.context["productos"]]
+
+    def test_busca_en_la_descripcion_y_muestra_contenido(self, client, catalogo):
+        client.force_login(catalogo.admin)
+        respuesta = client.get(reverse("inventario:lista_productos"), {"q": "lavanda"})
+        assert self._nombres(respuesta) == ["Detergente Ficticio"]
+        html = respuesta.content.decode()
+        assert "· 3 L" in html
+        assert "Aroma lavanda" in html
+
+    def test_sin_categoria(self, client, catalogo):
+        client.force_login(catalogo.admin)
+        respuesta = client.get(reverse("inventario:lista_productos"), {"categoria": "sin"})
+        assert self._nombres(respuesta) == ["Detergente Ficticio", "Pan Ficticio"]
+
+    def test_por_categoria(self, client, catalogo):
+        client.force_login(catalogo.admin)
+        respuesta = client.get(
+            reverse("inventario:lista_productos"), {"categoria": catalogo.categoria.pk}
+        )
+        assert self._nombres(respuesta) == ["Bebida Ficticia A"]
+
+    def test_sin_stock_y_orden_por_precio(self, client, catalogo):
+        client.force_login(catalogo.admin)
+        url = reverse("inventario:lista_productos")
+        assert self._nombres(client.get(url, {"stock": "sin"})) == [
+            "Detergente Ficticio",
+            "Pan Ficticio",
+        ]
+        assert self._nombres(client.get(url, {"orden": "precio"})) == [
+            "Pan Ficticio",
+            "Bebida Ficticia A",
+            "Detergente Ficticio",
+        ]
+
+    def test_stock_bajo_con_el_parametro_nuevo_y_el_antiguo(self, client, catalogo):
+        client.force_login(catalogo.admin)
+        url = reverse("inventario:lista_productos")
+        # Pan Ficticio: stock 0 y mínimo 0 -> en el mínimo, cuenta como stock bajo.
+        esperado = ["Detergente Ficticio", "Pan Ficticio"]
+        assert self._nombres(client.get(url, {"stock": "bajo"})) == esperado
+        assert self._nombres(client.get(url, {"stock_bajo": "1"})) == esperado
+
+    def test_valores_raros_en_la_url_se_ignoran(self, client, catalogo, datos_b):
+        client.force_login(catalogo.admin)
+        respuesta = client.get(
+            reverse("inventario:lista_productos"),
+            {"categoria": datos_b.categoria.pk, "stock": "x", "orden": "nada"},
+        )
+        assert respuesta.status_code == 200
+        assert len(self._nombres(respuesta)) == 3
+        assert "is-invalid" not in respuesta.content.decode()
+
+    def test_sin_resultados_ofrece_limpiar_filtros(self, client, catalogo):
+        client.force_login(catalogo.admin)
+        html = client.get(
+            reverse("inventario:lista_productos"), {"q": "zzz", "stock": "sin"}
+        ).content.decode()
+        assert "No hay productos que coincidan con la búsqueda o los filtros" in html
+        assert "Limpiar filtros" in html
+
+    def test_la_paginacion_conserva_filtros_y_orden(self, client, catalogo):
+        from apps.inventario.views import PRODUCTOS_POR_PAGINA
+
+        Producto.objects.del_almacen(catalogo.almacen).bulk_create(
+            [
+                Producto(
+                    id_almacen=catalogo.almacen,
+                    codigo_barras=f"78200000{i:05d}",
+                    nombre=f"Fideo Ficticio {i:03d}",
+                    precio=Decimal("900"),
+                )
+                for i in range(PRODUCTOS_POR_PAGINA + 1)
+            ]
+        )
+        client.force_login(catalogo.admin)
+        html = client.get(
+            reverse("inventario:lista_productos"),
+            {"q": "fideo", "categoria": "sin", "stock": "sin", "orden": "precio"},
+        ).content.decode()
+        assert "?q=fideo&amp;categoria=sin&amp;stock=sin&amp;orden=precio&amp;pagina=2" in html
+
+    def test_el_vendedor_tambien_busca_y_filtra(self, client, catalogo):
+        client.force_login(catalogo.vendedor)
+        respuesta = client.get(
+            reverse("inventario:lista_productos"), {"q": "detergente", "stock": "sin"}
+        )
+        assert self._nombres(respuesta) == ["Detergente Ficticio"]
+        assert "Editar" not in respuesta.content.decode()
+
+    def test_no_muestra_productos_de_otro_almacen(self, client, catalogo, datos_b):
+        client.force_login(catalogo.admin)
+        respuesta = client.get(reverse("inventario:lista_productos"), {"q": "ficticia"})
+        assert "Bebida Ficticia B" not in self._nombres(respuesta)
+        opciones = dict(respuesta.context["filtro"].fields["categoria"].choices)
+        assert str(datos_b.categoria.pk) not in opciones

@@ -79,8 +79,10 @@ PostgreSQL 16. Toda columna `NOT NULL` salvo las marcadas `NULL`. Es la
 Figura 7 del Informe 2 más las correcciones acordadas (marcadas con ★).
 **Congelado desde el paquete 1.3.2**: si un servicio necesita algo que el
 modelo no cubre, parar y preguntar. Cambios aprobados después: 1.4.3 (autor del
-producto y del movimiento, motivo del ajuste; aprobado el 2026-10-14) y 1.4.4
-(tabla `alerta` para CU-05 y el cierre de mes; aprobado el 2026-10-16).
+producto y del movimiento, motivo del ajuste; aprobado el 2026-10-14), 1.4.4
+(tabla `alerta` para CU-05 y el cierre de mes; aprobado el 2026-10-16) y mejoras de
+producto (descripción y contenido opcionales; aprobado por el autor el 2026-11-15 con
+el pedido de la evaluación 3).
 
 Semántica de `movimiento_stock`: `salida` + `id_venta` = venta; `entrada` +
 `id_venta` = restitución por anulación; `ajuste` = diferencia con signo y motivo.
@@ -129,8 +131,15 @@ producto
       fecha_creacion  TIMESTAMPTZ   DEFAULT now()
 ★ FK  id_usuario_creacion BIGINT NULL -> usuario   -- autor del alta (1.4.3); NULL si
                                                  -- se creó desde el admin de Django
+★     descripcion     VARCHAR(300)  NULL           -- 2026-11-15, opcional
+★     contenido       NUMERIC(8,2)  NULL           -- 2026-11-15: «350» de 350 ml; descriptivo,
+★     unidad_contenido VARCHAR(10)  NULL           -- NO es venta por peso (v2)
   UQ  uq_producto (id_almacen, codigo_barras)
   CK  stock_actual >= 0
+★ CK  ck_producto_contenido_coherente: (contenido IS NULL AND unidad_contenido IS NULL)
+     OR (contenido IS NOT NULL AND contenido > 0 AND unidad_contenido IS NOT NULL)
+★ CK  ck_producto_unidad_contenido: unidad_contenido IS NULL OR unidad_contenido IN
+        ('g','kg','ml','L','m','un')     -- sin 'cc' (= ml; se rotula «ml (cc)»)
   IX  ix_producto_codigo (codigo_barras)
 
 venta
@@ -605,6 +614,17 @@ años.
   desactivado «Venta simulada (ficticia)» (marca para `--deshacer`), suma cero por producto
   (entra al inicio de cada mes lo que se vende: el stock actual no cambia; quiebres
   artificiales a fin de mes), `hora_inicio` inventada. Sin `--confirmar` sólo ensaya.
+- **Mejoras de producto (2026-11-15, pedido para la
+  evaluación 3; cambio de modelo aprobado por el autor):** migración aditiva
+  `inventario/0004` (descripción, contenido + unidad con dos CHECK; **aplicarla en
+  producción con el despliegue**). `registrar_producto`/`actualizar_producto` aceptan
+  `categoria_nueva`: `obtener_o_crear_categoria()` dentro de la misma transacción, reutiliza
+  la existente (iexact, espacios normalizados con `normalizar_nombre_categoria`) y elegir
+  ambas es `ReglaDeNegocioError`. Inventario: `filtrar_productos()` (texto por palabra en
+  nombre/código/descripción, categoría o `SIN_CATEGORIA`, stock todos/bajo/sin, orden
+  nombre/stock/precio) + `FiltroInventarioForm`; `?stock_bajo=1` sigue funcionando como
+  `?stock=bajo`. Contenido en texto (`Producto.contenido_texto`, «1,5 L») en inventario,
+  API `producto_por_codigo` (`contenido`), caja y comprobante. Búsqueda sin `unaccent`.
 - Prueba de carga en Azure: `manage.py preparar_almacen_carga` (sólo almacenes de plan
   `carga`, nunca el piloto) + `pruebas_carga/locustfile.py` con `CARGA_EMAIL/CLAVE`.
 - Montos en pantalla con el filtro `pesos` (`{% load formato %}`).

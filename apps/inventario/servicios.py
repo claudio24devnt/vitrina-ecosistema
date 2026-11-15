@@ -6,8 +6,10 @@ MovimientoStock con el usuario que la hizo, y todo registro nace en el mismo
 almacén que el producto, la venta y el usuario a los que se refiere.
 """
 
+from decimal import Decimal
+
 from django.db import IntegrityError, transaction
-from django.db.models import F
+from django.db.models import F, Q
 
 from apps.almacenes.errores import ReglaDeNegocioError
 
@@ -17,7 +19,30 @@ from .models import (
     MovimientoStock,
     Producto,
     TipoMovimiento,
+    UnidadContenido,
 )
+
+# Valor del filtro de categoría del inventario para los productos sin categoría (los de
+# la alta rápida de la caja quedan así hasta que el administrador la completa).
+SIN_CATEGORIA = "sin"
+
+FILTROS_STOCK = ("todos", "bajo", "sin")
+
+# Orden del inventario. Siempre termina en la PK: orden total, ningún producto salta
+# entre páginas.
+ORDENES_INVENTARIO = {
+    "nombre": ("nombre", "pk"),
+    "stock": ("stock_actual", "nombre", "pk"),
+    "precio": ("precio", "nombre", "pk"),
+}
+
+MENSAJE_DOS_CATEGORIAS = (
+    "Elige una categoría de la lista o escribe una nueva, pero no las dos a la vez."
+)
+
+LARGO_DESCRIPCION = 300
+# NUMERIC(8,2): hasta 999.999,99.
+CONTENIDO_MAXIMO = Decimal("999999.99")
 
 
 class CodigoDuplicadoError(ReglaDeNegocioError):
@@ -166,13 +191,21 @@ def registrar_producto(
     nombre,
     precio,
     categoria=None,
+    categoria_nueva=None,
     stock_minimo=0,
     stock_inicial=0,
+    descripcion=None,
+    contenido=None,
+    unidad_contenido=None,
 ):
     """
     CU-01: alta de producto. También la usa la alta rápida de la caja (CU-02 2a), que
-    llega sin categoría ni stock. Si el código ya existe en el almacén lanza
-    CodigoDuplicadoError (con el producto existente) en vez de duplicarlo.
+    llega sin categoría, stock ni datos descriptivos. Si el código ya existe en el
+    almacén lanza CodigoDuplicadoError (con el producto existente) en vez de duplicarlo.
+
+    `categoria_nueva` (texto) crea la categoría en la misma transacción del alta: si el
+    alta falla, la categoría no queda. Si ya existe una con ese nombre se usa esa. El
+    producto devuelto lleva `categoria_creada` (True si se creó una categoría nueva).
     """
     codigo_barras = (codigo_barras or "").strip()
     nombre = (nombre or "").strip()
@@ -181,6 +214,8 @@ def registrar_producto(
         raise ReglaDeNegocioError("Faltan el código de barras o el nombre.")
     if precio is None or precio < 0:
         raise ReglaDeNegocioError("El precio no puede ser negativo.")
+    descriptivos = _validar_descriptivos(descripcion, contenido, unidad_contenido)
+    categoria_nueva = _validar_eleccion_de_categoria(categoria, categoria_nueva)
     existente = buscar_por_codigo(almacen, codigo_barras)
     if existente:
         raise CodigoDuplicadoError(existente)
@@ -189,6 +224,11 @@ def registrar_producto(
 
     try:
         with transaction.atomic():
+            creada = False
+            if categoria_nueva:
+                categoria, creada = obtener_o_crear_categoria(
+                    almacen=almacen, nombre=categoria_nueva
+                )
             producto = Producto.objects.del_almacen(almacen).create(
                 codigo_barras=codigo_barras,
                 nombre=nombre,
@@ -197,6 +237,7 @@ def registrar_producto(
                 stock_minimo=stock_minimo,
                 stock_actual=0,
                 id_usuario_creacion=usuario,
+                **descriptivos,
             )
             if stock_inicial > 0:
                 registrar_entrada_stock(
@@ -208,34 +249,178 @@ def registrar_producto(
         if existente:
             raise CodigoDuplicadoError(existente) from None
         raise
+    producto.categoria_creada = creada
     return producto
 
 
 def actualizar_producto(
-    *, almacen, producto, codigo_barras, nombre, precio, categoria, stock_minimo
+    *,
+    almacen,
+    producto,
+    codigo_barras,
+    nombre,
+    precio,
+    categoria,
+    stock_minimo,
+    categoria_nueva=None,
+    descripcion=None,
+    contenido=None,
+    unidad_contenido=None,
 ):
-    """Edita los datos del producto. El stock nunca se edita aquí: pasa por movimientos."""
+    """
+    Edita los datos del producto. El stock nunca se edita aquí: pasa por movimientos.
+    El formulario envía todos los campos: `descripcion`/`contenido` en None los borran.
+    `categoria_nueva` funciona igual que en el alta (misma transacción, reutiliza la
+    existente); el producto devuelto lleva `categoria_creada`.
+    """
     _exigir_mismo_almacen(almacen, producto, categoria)
     codigo_barras = (codigo_barras or "").strip()
+    nombre = (nombre or "").strip()
+    if not codigo_barras or not nombre:
+        raise ReglaDeNegocioError("Faltan el código de barras o el nombre.")
+    descriptivos = _validar_descriptivos(descripcion, contenido, unidad_contenido)
+    categoria_nueva = _validar_eleccion_de_categoria(categoria, categoria_nueva)
     otro = buscar_por_codigo(almacen, codigo_barras)
     if otro and otro.pk != producto.pk:
         raise CodigoDuplicadoError(otro)
 
-    producto.codigo_barras = codigo_barras
-    producto.nombre = nombre.strip()
-    producto.precio = precio
-    producto.id_categoria = categoria
-    producto.stock_minimo = stock_minimo
-    producto.save(
-        update_fields=["codigo_barras", "nombre", "precio", "id_categoria", "stock_minimo"]
-    )
+    with transaction.atomic():
+        creada = False
+        if categoria_nueva:
+            categoria, creada = obtener_o_crear_categoria(
+                almacen=almacen, nombre=categoria_nueva
+            )
+        producto.codigo_barras = codigo_barras
+        producto.nombre = nombre
+        producto.precio = precio
+        producto.id_categoria = categoria
+        producto.stock_minimo = stock_minimo
+        for campo, valor in descriptivos.items():
+            setattr(producto, campo, valor)
+        producto.save(
+            update_fields=[
+                "codigo_barras",
+                "nombre",
+                "precio",
+                "id_categoria",
+                "stock_minimo",
+                *descriptivos,
+            ]
+        )
+    producto.categoria_creada = creada
     return producto
 
 
+def _validar_descriptivos(descripcion, contenido, unidad_contenido):
+    """
+    Descripción y contenido son opcionales y sólo descriptivos (no tocan stock). Vacío
+    queda NULL, nunca texto vacío. Contenido y unidad van juntos
+    (ck_producto_contenido_coherente); se revisa aquí para dar un mensaje claro.
+    """
+    descripcion = (descripcion or "").strip() or None
+    if descripcion and len(descripcion) > LARGO_DESCRIPCION:
+        raise ReglaDeNegocioError(
+            f"La descripción puede tener hasta {LARGO_DESCRIPCION} caracteres."
+        )
+    unidad_contenido = unidad_contenido or None
+    if (contenido is None) != (unidad_contenido is None):
+        raise ReglaDeNegocioError(
+            "Para el contenido escribe la cantidad y elige la unidad (por ejemplo, 350 ml)."
+        )
+    if contenido is not None:
+        contenido = Decimal(contenido)
+        if contenido <= 0 or contenido > CONTENIDO_MAXIMO:
+            raise ReglaDeNegocioError(
+                "El contenido debe ser mayor que cero y menor que un millón."
+            )
+        if contenido != contenido.quantize(Decimal("0.01")):
+            raise ReglaDeNegocioError("El contenido admite hasta dos decimales.")
+        if unidad_contenido not in UnidadContenido.values:
+            raise ReglaDeNegocioError("Elige una unidad de la lista.")
+    return {
+        "descripcion": descripcion,
+        "contenido": contenido,
+        "unidad_contenido": unidad_contenido,
+    }
+
+
+def _validar_eleccion_de_categoria(categoria, categoria_nueva):
+    categoria_nueva = normalizar_nombre_categoria(categoria_nueva)
+    if categoria is not None and categoria_nueva:
+        raise ReglaDeNegocioError(MENSAJE_DOS_CATEGORIAS)
+    return categoria_nueva
+
+
+def normalizar_nombre_categoria(nombre):
+    """Sin espacios al borde ni repetidos: «  Bebidas   y jugos » -> «Bebidas y jugos»."""
+    return " ".join((nombre or "").split())
+
+
+def buscar_categoria(almacen, nombre):
+    """La categoría del almacén con ese nombre, sin distinguir mayúsculas ni espacios."""
+    nombre = normalizar_nombre_categoria(nombre)
+    if not nombre:
+        return None
+    return Categoria.objects.del_almacen(almacen).filter(nombre__iexact=nombre).first()
+
+
 def crear_categoria(*, almacen, nombre):
-    nombre = (nombre or "").strip()
+    nombre = normalizar_nombre_categoria(nombre)
     if not nombre:
         raise ReglaDeNegocioError("Escribe un nombre para la categoría.")
-    if Categoria.objects.del_almacen(almacen).filter(nombre__iexact=nombre).exists():
+    if buscar_categoria(almacen, nombre):
         raise ReglaDeNegocioError(f"Ya existe la categoría «{nombre}».")
     return Categoria.objects.del_almacen(almacen).create(nombre=nombre)
+
+
+def obtener_o_crear_categoria(*, almacen, nombre):
+    """
+    Para el formulario del producto: si la categoría ya existe (sin distinguir
+    mayúsculas ni espacios) se usa esa en vez de fallar; si no, se crea. Devuelve
+    (categoría, creada). Pensada para correr dentro de la transacción del alta.
+    """
+    existente = buscar_categoria(almacen, nombre)
+    if existente:
+        return existente, False
+    try:
+        # Punto de guardado: si otro usuario la creó recién (uq_categoria), se usa la
+        # suya sin abortar la transacción del alta.
+        with transaction.atomic():
+            return crear_categoria(almacen=almacen, nombre=nombre), True
+    except IntegrityError:
+        existente = buscar_categoria(almacen, nombre)
+        if existente:
+            return existente, False
+        raise
+
+
+def filtrar_productos(almacen, *, texto="", categoria=None, stock="todos", orden="nombre"):
+    """
+    Inventario con búsqueda y filtros (ambos roles). `texto` busca cada palabra en el
+    nombre, el código de barras o la descripción (todas las palabras deben aparecer,
+    cada una en cualquiera de los tres). `categoria`: None (todas), SIN_CATEGORIA o una
+    Categoria del almacén. `stock`: "todos", "bajo" (la misma regla de la alerta,
+    `productos_con_stock_bajo`) o "sin" (stock 0). `orden`: clave de ORDENES_INVENTARIO.
+    """
+    if categoria not in (None, SIN_CATEGORIA):
+        _exigir_mismo_almacen(almacen, categoria)
+    if stock == "bajo":
+        productos = productos_con_stock_bajo(almacen)
+    else:
+        productos = Producto.objects.del_almacen(almacen)
+        if stock == "sin":
+            productos = productos.filter(stock_actual=0)
+
+    for palabra in (texto or "").split():
+        productos = productos.filter(
+            Q(nombre__icontains=palabra)
+            | Q(codigo_barras__icontains=palabra)
+            | Q(descripcion__icontains=palabra)
+        )
+    if categoria == SIN_CATEGORIA:
+        productos = productos.filter(id_categoria__isnull=True)
+    elif categoria is not None:
+        productos = productos.filter(id_categoria=categoria)
+
+    campos = ORDENES_INVENTARIO.get(orden, ORDENES_INVENTARIO["nombre"])
+    return productos.select_related("id_categoria").order_by(*campos)

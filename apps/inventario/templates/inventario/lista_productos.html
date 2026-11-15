@@ -20,18 +20,32 @@
     {% if solo_stock_bajo %}
         <a href="{% url 'inventario:lista_productos' %}" class="btn btn-sm btn-outline-dark">Ver todos</a>
     {% else %}
-        <a href="?stock_bajo=1" class="btn btn-sm btn-warning">Ver sólo esos</a>
+        <a href="?stock=bajo" class="btn btn-sm btn-warning">Ver sólo esos</a>
     {% endif %}
 </div>
 {% endif %}
 
-<form method="get" class="row g-2 mb-3" role="search">
-    <div class="col">
-        <input type="search" name="q" value="{{ busqueda }}" class="form-control"
-               placeholder="Buscar por nombre o código de barras" aria-label="Buscar producto">
+<form method="get" class="row g-2 align-items-end mb-3" role="search" aria-label="Buscar y filtrar productos">
+    <div class="col-12 col-lg-4">
+        <label for="{{ filtro.q.id_for_label }}" class="form-label small mb-1">{{ filtro.q.label }}</label>
+        {{ filtro.q }}
     </div>
-    {% if solo_stock_bajo %}<input type="hidden" name="stock_bajo" value="1">{% endif %}
-    <div class="col-auto"><button type="submit" class="btn btn-outline-secondary">Buscar</button></div>
+    <div class="col-6 col-md-4 col-lg-2">
+        <label for="{{ filtro.categoria.id_for_label }}" class="form-label small mb-1">{{ filtro.categoria.label }}</label>
+        {{ filtro.categoria }}
+    </div>
+    <div class="col-6 col-md-3 col-lg-2">
+        <label for="{{ filtro.stock.id_for_label }}" class="form-label small mb-1">{{ filtro.stock.label }}</label>
+        {{ filtro.stock }}
+    </div>
+    <div class="col-12 col-md-5 col-lg-2">
+        <label for="{{ filtro.orden.id_for_label }}" class="form-label small mb-1">{{ filtro.orden.label }}</label>
+        {{ filtro.orden }}
+    </div>
+    <div class="col-12 col-lg-2 d-flex gap-2">
+        <button type="submit" class="btn btn-outline-secondary flex-fill">Buscar</button>
+        {% if hay_filtros %}<a href="{% url 'inventario:lista_productos' %}" class="btn btn-link px-1">Limpiar</a>{% endif %}
+    </div>
 </form>
 
 {% if productos %}
@@ -51,11 +65,15 @@
             {% for producto in productos %}
             <tr class="{% if producto.stock_bajo %}table-warning{% endif %}">
                 <td>
-                    <div class="fw-semibold">{{ producto.nombre }}</div>
+                    <div class="fw-semibold">
+                        {{ producto.nombre }}
+                        {% if producto.contenido_texto %}<span class="fw-normal text-secondary text-nowrap">· {{ producto.contenido_texto }}</span>{% endif %}
+                    </div>
+                    {% if producto.descripcion %}<div class="small text-truncate descripcion-producto" title="{{ producto.descripcion }}">{{ producto.descripcion }}</div>{% endif %}
                     <div class="small text-secondary">{{ producto.codigo_barras }}</div>
                     {% if producto.stock_bajo %}<span class="badge text-bg-warning">Stock bajo</span>{% endif %}
                 </td>
-                <td class="d-none d-md-table-cell">{{ producto.id_categoria.nombre|default:"—" }}</td>
+                <td class="d-none d-md-table-cell">{{ producto.id_categoria.nombre|default:"Sin categoría" }}</td>
                 <td class="text-end">{{ producto.precio|pesos }}</td>
                 <td class="text-end fw-semibold">{{ producto.stock_actual }}</td>
                 <td class="text-end d-none d-sm-table-cell">{{ producto.stock_minimo }}</td>
@@ -88,8 +106,11 @@
     </ul>
 </nav>
 {% endif %}
-{% elif busqueda or solo_stock_bajo %}
-<div class="alert alert-light border">No hay productos que coincidan con la búsqueda.</div>
+{% elif hay_filtros %}
+<div class="alert alert-light border">
+    No hay productos que coincidan con la búsqueda o los filtros.
+    <a href="{% url 'inventario:lista_productos' %}">Limpiar filtros y ver todo el inventario</a>.
+</div>
 {% else %}
 <div class="alert alert-light border">
     Todavía no hay productos registrados.
