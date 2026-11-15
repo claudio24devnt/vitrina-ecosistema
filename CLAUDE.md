@@ -599,6 +599,12 @@ años.
   el modelo (unidad de venta en `producto`, gramos en detalle/movimiento/stock) y separar
   unidades de kilos en el reporte. Ojo: los códigos de la demo empiezan con `2000…`,
   rango GS1 de etiquetas de balanza; habría que moverlos.
+- **Ventas simuladas para el video (2026-11-15, pedido del autor):** `manage.py simular_ventas
+  --email <admin> --desde AAAA-MM [--confirmar] [--deshacer]` sobre un almacén EXISTENTE de
+  pruebas (nunca el piloto; rechaza plan `operacion`). FICTICIAS: autor único un vendedor
+  desactivado «Venta simulada (ficticia)» (marca para `--deshacer`), suma cero por producto
+  (entra al inicio de cada mes lo que se vende: el stock actual no cambia; quiebres
+  artificiales a fin de mes), `hora_inicio` inventada. Sin `--confirmar` sólo ensaya.
 - Prueba de carga en Azure: `manage.py preparar_almacen_carga` (sólo almacenes de plan
   `carga`, nunca el piloto) + `pruebas_carga/locustfile.py` con `CARGA_EMAIL/CLAVE`.
 - Montos en pantalla con el filtro `pesos` (`{% load formato %}`).
