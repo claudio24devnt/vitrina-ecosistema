@@ -581,3 +581,76 @@ class TestBusquedaYFiltrosDelInventario:
         assert "Bebida Ficticia B" not in self._nombres(respuesta)
         opciones = dict(respuesta.context["filtro"].fields["categoria"].choices)
         assert str(datos_b.categoria.pk) not in opciones
+
+
+@pytest.mark.django_db
+class TestContenidoEscritoConUnidad:
+    """
+    2026-11-19: la ayuda mostraba «350 ml» pero el campo sólo aceptaba números. Ahora
+    acepta la cantidad sola o con la unidad escrita, y la unidad escrita llena el selector.
+    """
+
+    def _alta(self, client, datos_a, **cambios):
+        client.force_login(datos_a.admin)
+        return client.post(reverse("inventario:nuevo_producto"), _datos_alta(**cambios))
+
+    def _contenido(self, datos_a):
+        return (
+            Producto.objects.del_almacen(datos_a.almacen)
+            .get(codigo_barras="7801111222233")
+            .contenido_texto
+        )
+
+    @pytest.mark.parametrize(
+        "escrito, esperado",
+        [
+            ("350 ml", "350 ml"),
+            ("350ml", "350 ml"),
+            ("500 cc", "500 ml"),
+            ("1,5 L", "1,5 L"),
+            ("1.5 litros", "1,5 L"),
+            ("1 Kg.", "1 kg"),
+            ("250 gr", "250 g"),
+            ("6 unidades", "6 unidades"),
+        ],
+    )
+    def test_la_unidad_escrita_se_entiende(self, client, datos_a, escrito, esperado):
+        self._alta(client, datos_a, contenido=escrito)
+        assert self._contenido(datos_a) == esperado
+
+    def test_numero_solo_con_la_unidad_elegida_sigue_funcionando(self, client, datos_a):
+        self._alta(client, datos_a, contenido="350", unidad_contenido="ml")
+        assert self._contenido(datos_a) == "350 ml"
+
+    def test_unidad_escrita_igual_a_la_elegida_no_es_error(self, client, datos_a):
+        self._alta(client, datos_a, contenido="350 ml", unidad_contenido="ml")
+        assert self._contenido(datos_a) == "350 ml"
+
+    def test_unidad_escrita_distinta_de_la_elegida_pide_dejar_una(self, client, datos_a):
+        respuesta = self._alta(client, datos_a, contenido="350 ml", unidad_contenido="kg")
+        errores = respuesta.context["form"].errors["unidad_contenido"]
+        assert "escribiste «ml (cc)»" in errores[0] and "elegiste «kg»" in errores[0]
+
+    @pytest.mark.parametrize(
+        "escrito, mensaje",
+        [
+            ("350 onzas", "No reconozco la unidad «onzas»"),
+            ("ml 350", "Escribe primero la cantidad"),
+            ("0 ml", "mayor que cero"),
+            ("1,555 L", "hasta dos decimales"),
+        ],
+    )
+    def test_errores_dicen_que_corregir(self, client, datos_a, escrito, mensaje):
+        respuesta = self._alta(client, datos_a, contenido=escrito)
+        assert mensaje in respuesta.context["form"].errors["contenido"][0]
+        assert (
+            not Producto.objects.del_almacen(datos_a.almacen)
+            .filter(codigo_barras="7801111222233")
+            .exists()
+        )
+
+    def test_la_ayuda_explica_las_dos_formas(self, client, datos_a):
+        client.force_login(datos_a.admin)
+        html = client.get(reverse("inventario:nuevo_producto")).content.decode()
+        assert "o pon sólo el número y elige la unidad abajo" in html
+        assert 'inputmode="decimal"' not in html  # se pueden escribir letras

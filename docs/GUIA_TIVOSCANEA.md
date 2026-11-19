@@ -100,8 +100,10 @@ El stock inicial queda registrado como un movimiento de **entrada**.
   escribe una nueva, pero no las dos a la vez».
 - **Descripción** (opcional, hasta 300 caracteres): sabor, variedad, marca.
 - **Contenido** (opcional): cantidad y unidad del envase, p. ej. 350 ml, 1,5 L, 1 kg,
-  6 unidades. Unidades: g, kg, ml (cc), L, m, unidades. Acepta coma decimal. Van las
-  dos o ninguna. Es sólo informativo: **no** es venta por peso (eso es v2), no cambia
+  6 unidades. Unidades: g, kg, ml (cc), L, m, unidades. Acepta coma decimal. Se puede
+  escribir junto («350 ml», «500 cc», «1,5 litros», «250 gr»: la unidad escrita llena el
+  selector) o sólo el número y elegir la unidad (2026-11-19). Si lo escrito y lo elegido
+  no coinciden, pide dejar uno. Van las dos o ninguna. Es sólo informativo: **no** es venta por peso (eso es v2), no cambia
   stock ni ventas. Se ve en el inventario, en la caja junto al nombre y en el
   comprobante.
 - **Costo por unidad** (opcional, 2026-11-19): lo que cobra el proveedor por cada
