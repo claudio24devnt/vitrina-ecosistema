@@ -12,5 +12,6 @@ urlpatterns = [
 
 # Se montan bajo /api/ con el namespace "api" (ver tivoscanea/urls.py).
 api_urlpatterns = [
+    path("reportes/", api.ReporteAPI.as_view(), name="reporte"),
     path("reportes/mensual/", api.ReporteMensualAPI.as_view(), name="reporte_mensual"),
 ]

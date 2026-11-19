@@ -20,7 +20,7 @@ from apps.reporteria.servicios import (
     TOPE_MAS_VENDIDOS,
     alertar_stock_bajo,
     alertas_del_panel,
-    armar_grafico_diario,
+    armar_grafico,
     avisar_cierre_mes,
     consultar_reporte_mensual,
     marcar_alerta_vista,
@@ -244,7 +244,7 @@ class TestComparacionConMesesAnteriores:
         reporte = reporte_mensual(tienda, SEPTIEMBRE, HOY)
         assert reporte.motivo_sin_comparacion is None
         assert reporte.variacion == Decimal("50.0")
-        ultimos = [(f["mes"], f["monto"], f["variacion"]) for f in reporte.comparacion[-2:]]
+        ultimos = [(f["inicio"], f["monto"], f["variacion"]) for f in reporte.comparacion[-2:]]
         assert ultimos == [
             (AGOSTO, Decimal("10000"), None),  # julio no tuvo ventas
             (SEPTIEMBRE, Decimal("15000"), Decimal("50.0")),
@@ -252,11 +252,11 @@ class TestComparacionConMesesAnteriores:
 
     def test_muestra_seis_meses_sin_ir_antes_del_inicio(self, tienda, producto):
         vender(tienda, local(2026, 9, 10, 10), (producto, 1))
-        meses = [f["mes"] for f in reporte_mensual(tienda, SEPTIEMBRE, HOY).comparacion]
+        meses = [f["inicio"] for f in reporte_mensual(tienda, SEPTIEMBRE, HOY).comparacion]
         assert meses == [date(2026, m, 1) for m in range(4, 10)]
 
         dar_de_alta_en(tienda, date(2026, 8, 1))
-        meses = [f["mes"] for f in reporte_mensual(tienda, SEPTIEMBRE, HOY).comparacion]
+        meses = [f["inicio"] for f in reporte_mensual(tienda, SEPTIEMBRE, HOY).comparacion]
         assert meses == [AGOSTO, SEPTIEMBRE]
 
     def test_sin_ventas_el_mes_anterior_omite_e_indica_el_motivo(self, tienda, producto):
@@ -317,9 +317,9 @@ class TestCalculoEnLaBaseDeDatos:
         for dia in range(1, 31):
             vender(tienda, local(2026, 9, dia, 12), (producto, 1))
         vender(tienda, local(2026, 8, 3, 12), (producto, 1))
-        # Inicio de registros, totales, más vendidos, cada día, día de la semana,
-        # franja (+ franjas), meses.
-        with django_assert_max_num_queries(8):
+        # Inicio de registros, totales, unidades, más y menos vendidos, sin ventas (resumen
+        # + filas), por categoría, cada día, día de la semana, franja (+ franjas), meses.
+        with django_assert_max_num_queries(13):
             reporte = reporte_mensual(tienda, SEPTIEMBRE, HOY)
         assert reporte.cantidad_ventas == 30
 
@@ -400,12 +400,12 @@ class TestGraficoDiario:
         ],
     )
     def test_el_eje_usa_marcas_redondas_que_cubren_el_maximo(self, maximo, marcas):
-        grafico = armar_grafico_diario([_fila_diaria(1, maximo, True)])
+        grafico = armar_grafico([_fila_diaria(1, maximo, True)])
         assert [m["monto"] for m in grafico["marcas"]] == marcas
         assert grafico["marcas"][-1]["altura"] == Decimal("100.0")
 
     def test_la_altura_es_proporcional_al_tope_del_eje(self):
-        barras = armar_grafico_diario(
+        barras = armar_grafico(
             [_fila_diaria(1, 0), _fila_diaria(2, 45000, True), _fila_diaria(3, 15000)]
         )["barras"]
         assert [b["altura"] for b in barras] == [
@@ -415,7 +415,7 @@ class TestGraficoDiario:
         ]
 
     def test_nombra_todos_los_dias_empatados_como_mayores(self):
-        grafico = armar_grafico_diario(
+        grafico = armar_grafico(
             [_fila_diaria(1, 500, True), _fila_diaria(2, 100), _fila_diaria(3, 500, True)]
         )
         assert grafico["dias_mayores"] == "día 1, día 3"
@@ -424,7 +424,7 @@ class TestGraficoDiario:
     def test_rotula_cada_cinco_dias_sin_pegarse_al_primero(self):
         def rotulos(desde, hasta):
             filas = [_fila_diaria(dia, 100) for dia in range(desde, hasta + 1)]
-            barras = armar_grafico_diario([{**f, "es_mayor": False} for f in filas])["barras"]
+            barras = armar_grafico([{**f, "es_mayor": False} for f in filas])["barras"]
             return [b["rotulo"] for b in barras if b["rotulo"]]
 
         assert rotulos(1, 30) == [1, 5, 10, 15, 20, 25, 30]

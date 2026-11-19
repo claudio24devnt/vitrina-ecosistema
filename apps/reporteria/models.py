@@ -7,8 +7,20 @@ from django.utils import timezone
 from apps.almacenes.aislamiento import ModeloDeAlmacen
 
 
+class TipoPeriodo(models.TextChoices):
+    SEMANA = "semana", "Semana"
+    MES = "mes", "Mes"
+    ANIO = "anio", "Año"
+
+
 class AccesoReporte(ModeloDeAlmacen):
-    """Cada consulta del reporte mensual (indicador «uso efectivo de la reportería»)."""
+    """
+    Cada consulta del reporte (indicador «uso efectivo de la reportería»).
+    `tipo_periodo` (2026-11-18, aprobado por el autor): el reporte también se ve por
+    semana y por año. `mes_consultado` guarda el primer día del período consultado: el
+    lunes de la semana, el día 1 del mes o el 1 de enero; el nombre se mantiene para no
+    renombrar la columna.
+    """
 
     id_acceso = models.BigAutoField(primary_key=True, db_column="id_acceso")
     id_usuario = models.ForeignKey(
@@ -18,7 +30,13 @@ class AccesoReporte(ModeloDeAlmacen):
         related_name="accesos_reporte",
         db_index=False,
     )
-    mes_consultado = models.DateField(help_text="Primer día del mes consultado.")
+    mes_consultado = models.DateField(help_text="Primer día del período consultado.")
+    tipo_periodo = models.CharField(
+        max_length=10,
+        choices=TipoPeriodo.choices,
+        default=TipoPeriodo.MES,
+        db_default=TipoPeriodo.MES,
+    )
     fecha_hora = models.DateTimeField(default=timezone.now, db_default=Now())
 
     class Meta:
@@ -30,9 +48,24 @@ class AccesoReporte(ModeloDeAlmacen):
         indexes = [
             models.Index(fields=["id_almacen", "fecha_hora"], name="ix_acceso_almacen_fecha")
         ]
+        constraints = [
+            # El primer día debe calzar con el tipo: lunes, día 1 o 1 de enero.
+            models.CheckConstraint(
+                condition=Q(tipo_periodo=TipoPeriodo.SEMANA, mes_consultado__iso_week_day=1)
+                | Q(tipo_periodo=TipoPeriodo.MES, mes_consultado__day=1)
+                | Q(
+                    tipo_periodo=TipoPeriodo.ANIO,
+                    mes_consultado__day=1,
+                    mes_consultado__month=1,
+                ),
+                name="ck_acceso_reporte_periodo",
+            )
+        ]
 
     def __str__(self):
-        return f"{self.id_usuario_id} consultó {self.mes_consultado:%Y-%m}"
+        return (
+            f"{self.id_usuario_id} consultó {self.tipo_periodo} {self.mes_consultado:%Y-%m-%d}"
+        )
 
 
 class TipoAlerta(models.TextChoices):

@@ -85,6 +85,7 @@ COLUMNAS = {
         "id_almacen": ("bigint", False),
         "id_usuario": ("bigint", False),
         "mes_consultado": ("date", False),
+        "tipo_periodo": ("character varying(10)", False),
         "fecha_hora": ("timestamp with time zone", False),
     },
     "franja_horaria": {
@@ -128,6 +129,7 @@ RESTRICCIONES = {
     "ck_alerta_tipo",
     "ck_alerta_vista_coherente",
     "uq_alerta",
+    "ck_acceso_reporte_periodo",
 }
 
 INDICES = {

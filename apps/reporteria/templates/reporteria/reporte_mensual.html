@@ -1,15 +1,24 @@
 {% extends "base.html" %}
 {% load formato static %}
 
-{% block titulo %}Reporte de {{ reporte.nombre }} — TivoScanea{% endblock %}
+{% block titulo %}{{ reporte.periodo.titulo }} — TivoScanea{% endblock %}
 
 {% block contenido %}
+<ul class="nav nav-pills mb-3" aria-label="Período del reporte">
+    {% for valor, nombre in tipos %}
+    <li class="nav-item">
+        <a class="nav-link{% if valor == reporte.tipo %} active{% endif %}" {% if valor == reporte.tipo %}aria-current="page"{% endif %} href="?periodo={{ valor }}">{% if valor == "semana" %}Semana{% elif valor == "mes" %}Mes{% else %}Año{% endif %}</a>
+    </li>
+    {% endfor %}
+</ul>
+
 <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
-    <h1 class="h3 m-0">Reporte de {{ reporte.nombre }}</h1>
+    <h1 class="h3 m-0">{{ reporte.periodo.titulo }}</h1>
     <form method="get" class="d-flex gap-2">
-        <select name="mes" class="form-select" aria-label="Mes">
-            {% for mes, nombre in meses %}
-            <option value="{{ mes|date:'Y-m' }}" {% if mes == reporte.mes %}selected{% endif %}>{{ nombre }}</option>
+        <input type="hidden" name="periodo" value="{{ reporte.tipo }}">
+        <select name="{{ parametro }}" class="form-select" aria-label="Período">
+            {% for periodo in periodos %}
+            <option value="{{ periodo.valor }}" {% if periodo == reporte.periodo %}selected{% endif %}>{{ periodo.etiqueta }}</option>
             {% endfor %}
         </select>
         <button type="submit" class="btn btn-outline-secondary">Ver</button>
@@ -19,25 +28,29 @@
 {% if not reporte.hay_ventas %}
 <div class="alert alert-info">
     <p class="mb-1 fw-semibold">No hay ventas registradas en {{ reporte.nombre }}.</p>
-    <p class="mb-0">El reporte se arma con las ventas confirmadas en la caja. Cuando las haya, aquí vas a ver los productos más vendidos, los días y los horarios con más movimiento.</p>
+    <p class="mb-0">El reporte se arma con las ventas confirmadas en la caja. Cuando las haya, aquí vas a ver los productos más y menos vendidos, los días y los horarios con más movimiento.</p>
 </div>
 {% else %}
 
 {% if reporte.mes_parcial %}
 <div class="alert alert-secondary py-2">
-    Este reporte cubre del {{ reporte.desde|date:"d-m-Y" }} al {{ reporte.ultimo_dia|date:"d-m-Y" }}{% if reporte.en_curso %}: el mes todavía no termina{% else %}: el almacén empezó a registrar en TivoScanea a mitad de mes{% endif %}.
+    Este reporte cubre del {{ reporte.desde|date:"d-m-Y" }} al {{ reporte.ultimo_dia|date:"d-m-Y" }}{% if reporte.en_curso %}: el período todavía no termina{% else %}: el almacén empezó a registrar en TivoScanea a mitad del período{% endif %}.
 </div>
 {% endif %}
 
 <div class="row g-3 mb-4">
-    <div class="col-6 col-md-4"><div class="card h-100"><div class="card-body">
+    <div class="col-6 col-md-3"><div class="card h-100"><div class="card-body">
         <div class="small text-secondary">Ventas</div><div class="cifra-grande">{{ reporte.cantidad_ventas }}</div>
     </div></div></div>
-    <div class="col-6 col-md-4"><div class="card h-100"><div class="card-body">
+    <div class="col-6 col-md-3"><div class="card h-100"><div class="card-body">
         <div class="small text-secondary">Total vendido</div><div class="cifra-grande">{{ reporte.monto_total|pesos }}</div>
     </div></div></div>
-    <div class="col-12 col-md-4"><div class="card h-100"><div class="card-body">
-        <div class="small text-secondary">Frente al mes anterior</div>
+    <div class="col-6 col-md-3"><div class="card h-100"><div class="card-body">
+        <div class="small text-secondary">Venta promedio</div><div class="cifra-grande">{{ reporte.ticket_promedio|pesos }}</div>
+        <div class="small text-secondary">{{ reporte.unidades }} unidad{{ reporte.unidades|pluralize:"es" }} en total</div>
+    </div></div></div>
+    <div class="col-6 col-md-3"><div class="card h-100"><div class="card-body">
+        <div class="small text-secondary">{{ reporte.periodo.frente_al_anterior }}</div>
         {% if reporte.motivo_sin_comparacion %}
         <p class="mb-0 small">{{ reporte.motivo_sin_comparacion }}</p>
         {% else %}
@@ -46,11 +59,11 @@
     </div></div></div>
 </div>
 
-{% with grafico=reporte.grafico_diario %}
+{% with grafico=reporte.grafico %}
 <section class="mb-4">
-    <h2 class="h5">Lo vendido cada día</h2>
+    <h2 class="h5">{% if reporte.por_mes %}Lo vendido cada mes{% else %}Lo vendido cada día{% endif %}</h2>
     <div class="bg-white rounded shadow-sm p-3">
-        <p class="small text-secondary">Día con más venta: <span class="fw-semibold text-body">{{ grafico.dias_mayores }}</span>, {{ grafico.monto_mayor|pesos }}.</p>
+        <p class="small text-secondary">{% if reporte.por_mes %}Mes{% else %}Día{% endif %} con más venta: <span class="fw-semibold text-body">{{ grafico.dias_mayores }}</span>, {{ grafico.monto_mayor|pesos }}.</p>
         <div class="grafico-plano">
             {% for marca in grafico.marcas %}
             <div class="grafico-marca" style="bottom: {{ marca.altura|stringformat:'s' }}%"><span>{{ marca.monto|pesos }}</span></div>
@@ -65,11 +78,11 @@
             </div>
         </div>
         <details class="mt-3">
-            <summary class="small">Ver el detalle por día</summary>
+            <summary class="small">Ver el detalle por {% if reporte.por_mes %}mes{% else %}día{% endif %}</summary>
             <div class="table-responsive mt-2">
                 <table class="table table-sm align-middle mb-0">
                     <thead class="table-light">
-                        <tr><th>Día</th><th class="text-end">Ventas</th><th class="text-end">Vendido</th></tr>
+                        <tr><th>{% if reporte.por_mes %}Mes{% else %}Día{% endif %}</th><th class="text-end">Ventas</th><th class="text-end">Vendido</th></tr>
                     </thead>
                     <tbody>
                         {% for barra in grafico.barras %}
@@ -84,7 +97,7 @@
             </div>
         </details>
     </div>
-    <p class="small text-secondary mt-1">Un día sin barra es un día sin ventas registradas. Las ventas anuladas no cuentan.</p>
+    <p class="small text-secondary mt-1">Un {% if reporte.por_mes %}mes{% else %}día{% endif %} sin barra es un {% if reporte.por_mes %}mes{% else %}día{% endif %} sin ventas registradas. Las ventas anuladas no cuentan.</p>
 </section>
 {% endwith %}
 
@@ -108,10 +121,88 @@
             </tbody>
         </table>
     </div>
-    <p class="small text-secondary mt-1">«Del total» es la parte de las unidades vendidas en el mes. Si dos productos empatan, comparten el lugar.</p>
+    <p class="small text-secondary mt-1">«Del total» es la parte de las unidades vendidas {{ reporte.periodo.en_el_periodo }}. Si dos productos empatan, comparten el lugar.</p>
+</section>
+
+<section class="mb-4">
+    <h2 class="h5">Productos menos vendidos</h2>
+    {% if reporte.menos_vendidos %}
+    <div class="table-responsive bg-white rounded shadow-sm">
+        <table class="table align-middle mb-0">
+            <thead class="table-light">
+                <tr><th>Producto</th><th class="text-end">Unidades</th><th class="text-end d-none d-sm-table-cell">Vendido</th><th class="text-end">Stock hoy</th></tr>
+            </thead>
+            <tbody>
+                {% for fila in reporte.menos_vendidos %}
+                <tr>
+                    <td>{{ fila.nombre }} <span class="text-secondary small d-none d-md-inline">{{ fila.codigo_barras }}</span></td>
+                    <td class="text-end">{{ fila.unidades }}</td>
+                    <td class="text-end d-none d-sm-table-cell">{{ fila.monto|pesos }}</td>
+                    <td class="text-end">{{ fila.stock_actual }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    <p class="small text-secondary mt-1">Se vendieron, pero poco: empieza por el que menos unidades tuvo. No repite los que ya están entre los más vendidos.</p>
+    {% else %}
+    <p class="text-secondary">Se vendieron {{ reporte.productos_vendidos }} producto{{ reporte.productos_vendidos|pluralize }} distinto{{ reporte.productos_vendidos|pluralize }} y todos aparecen en los más vendidos.</p>
+    {% endif %}
+</section>
+
+<section class="mb-4">
+    <h2 class="h5">Productos sin ventas</h2>
+    {% if reporte.sin_ventas.cantidad %}
+    <p class="mb-2">{{ reporte.sin_ventas.cantidad }} producto{{ reporte.sin_ventas.cantidad|pluralize }} no se vendi{{ reporte.sin_ventas.cantidad|pluralize:"ó,eron" }} ni una vez {{ reporte.periodo.en_el_periodo }}. Tienen {{ reporte.sin_ventas.unidades }} unidad{{ reporte.sin_ventas.unidades|pluralize:"es" }} en stock, {{ reporte.sin_ventas.valor|pesos }} a precio de venta.</p>
+    <div class="table-responsive bg-white rounded shadow-sm">
+        <table class="table align-middle mb-0">
+            <thead class="table-light">
+                <tr><th>Producto</th><th class="text-end">Stock hoy</th><th class="text-end d-none d-sm-table-cell">Precio</th></tr>
+            </thead>
+            <tbody>
+                {% for fila in reporte.sin_ventas.productos %}
+                <tr>
+                    <td>{{ fila.nombre }} <span class="text-secondary small d-none d-md-inline">{{ fila.codigo_barras }}</span>{% if fila.nuevo %} <span class="badge text-bg-light border">registrado el {{ fila.alta|date:"d-m" }}</span>{% endif %}</td>
+                    <td class="text-end">{{ fila.stock_actual }}</td>
+                    <td class="text-end d-none d-sm-table-cell">{{ fila.precio|pesos }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    <p class="small text-secondary mt-1">Primero los que tienen más stock parado{% if reporte.sin_ventas.cantidad > reporte.sin_ventas.productos|length %}; se muestran los primeros {{ reporte.sin_ventas.productos|length }}{% endif %}. «Registrado el» marca un producto que se agregó durante el período. El stock es el de hoy.</p>
+    {% else %}
+    <p class="text-secondary">Todos los productos registrados se vendieron al menos una vez {{ reporte.periodo.en_el_periodo }}.</p>
+    {% endif %}
+</section>
+
+<section class="mb-4">
+    <h2 class="h5">Por categoría</h2>
+    <div class="table-responsive bg-white rounded shadow-sm">
+        <table class="table align-middle mb-0">
+            <thead class="table-light">
+                <tr><th>Categoría</th><th class="text-end">Unidades</th><th class="text-end">Vendido</th><th class="w-25 d-none d-sm-table-cell"></th></tr>
+            </thead>
+            <tbody>
+                {% for fila in reporte.por_categoria %}
+                <tr>
+                    <td>{% if fila.sin_categoria %}<span class="text-secondary">{{ fila.categoria }}</span>{% else %}{{ fila.categoria }}{% endif %}</td>
+                    <td class="text-end">{{ fila.unidades }}</td>
+                    <td class="text-end">{{ fila.monto|pesos }}</td>
+                    <td class="d-none d-sm-table-cell">
+                        <div class="progress" role="img" aria-label="{{ fila.participacion|porcentaje }} de lo vendido">
+                            <div class="progress-bar bg-success" style="width: {{ fila.participacion|stringformat:'s' }}%"></div>
+                        </div>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
 </section>
 
 <div class="row g-4 mb-4">
+    {% if reporte.por_dia_semana %}
     <section class="col-lg-6">
         <h2 class="h5">Por día de la semana</h2>
         <div class="table-responsive bg-white rounded shadow-sm">
@@ -137,6 +228,7 @@
         </div>
         <p class="small text-secondary mt-1">El promedio divide lo vendido por cuántos lunes, martes, etc. tuvo el período: un mes trae 4 o 5 de cada día.</p>
     </section>
+    {% endif %}
 
     <section class="col-lg-6">
         <h2 class="h5">Por horario</h2>
@@ -165,11 +257,11 @@
 </div>
 
 <section>
-    <h2 class="h5">Meses anteriores</h2>
+    <h2 class="h5">{{ reporte.periodo.anteriores }}</h2>
     <div class="table-responsive bg-white rounded shadow-sm">
         <table class="table align-middle mb-0">
             <thead class="table-light">
-                <tr><th>Mes</th><th class="text-end">Ventas</th><th class="text-end">Vendido</th><th class="text-end">Cambio</th></tr>
+                <tr><th>Período</th><th class="text-end">Ventas</th><th class="text-end">Vendido</th><th class="text-end">Cambio</th></tr>
             </thead>
             <tbody>
                 {% for fila in reporte.comparacion %}
@@ -183,7 +275,7 @@
             </tbody>
         </table>
     </div>
-    <p class="small text-secondary mt-1">El cambio se calcula sólo entre dos meses completos seguidos. Un mes en curso o en que el almacén empezó a mitad de mes aparece como incompleto.</p>
+    <p class="small text-secondary mt-1">El cambio se calcula sólo entre dos períodos completos seguidos. Uno en curso o en que el almacén empezó a la mitad aparece como incompleto.</p>
 </section>
 {% endif %}
 {% endblock %}
