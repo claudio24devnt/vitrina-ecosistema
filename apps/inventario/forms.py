@@ -1,4 +1,5 @@
-from decimal import Decimal
+import re
+from decimal import Decimal, InvalidOperation
 
 from django import forms
 
@@ -6,6 +7,7 @@ from apps.almacenes.formularios import FormularioBootstrap
 
 from .models import MOTIVOS_AJUSTE_MANUAL, Categoria, UnidadContenido
 from .servicios import (
+    CONTENIDO_MAXIMO,
     FILTROS_STOCK,
     LARGO_DESCRIPCION,
     MENSAJE_DOS_CATEGORIAS,
@@ -13,21 +15,66 @@ from .servicios import (
     SIN_CATEGORIA,
 )
 
+# Cómo escribe la gente la unidad del envase -> valor de UnidadContenido. Sin tildes ni
+# mayúsculas: se comparan en minúscula y sin el punto final («Kg.», «lts»).
+UNIDADES_ESCRITAS = {
+    **dict.fromkeys(["g", "gr", "grs", "gramo", "gramos"], "g"),
+    **dict.fromkeys(["kg", "kgs", "kilo", "kilos", "kilogramo", "kilogramos"], "kg"),
+    **dict.fromkeys(["ml", "cc", "c.c", "mililitro", "mililitros"], "ml"),
+    **dict.fromkeys(["l", "lt", "lts", "litro", "litros"], "L"),
+    **dict.fromkeys(["m", "mt", "mts", "metro", "metros"], "m"),
+    **dict.fromkeys(["u", "un", "und", "unid", "unidad", "unidades"], "un"),
+}
+_PATRON_CONTENIDO = re.compile(r"^(?P<numero>\d+(?:[.,]\d+)?)\s*(?P<unidad>[^\d\s].*)?$")
 
-class CampoDecimalConComa(forms.DecimalField):
-    """Acepta «1,5» además de «1.5»: en Chile la coma es el separador decimal."""
 
-    widget = forms.TextInput
+class CampoContenido(forms.CharField):
+    """
+    Lo que trae el envase, como lo escribe la gente: «350», «350 ml», «1,5 L», «6
+    unidades», «500 cc». Devuelve (cantidad, unidad escrita o None); la unidad escrita
+    completa el selector de unidad (ProductoForm.clean). Coma o punto decimal.
+    """
 
-    def to_python(self, value):
-        if isinstance(value, str):
-            value = value.strip().replace(",", ".")
-        return super().to_python(value)
+    def __init__(self, **kwargs):
+        super().__init__(max_length=30, **kwargs)
 
     def widget_attrs(self, widget):
-        # Sin los atributos de NumberInput (step/min): es un campo de texto con teclado
-        # numérico en el celular.
-        return {"inputmode": "decimal", "autocomplete": "off"}
+        # Sin teclado numérico: la unidad también se puede escribir.
+        return {"autocomplete": "off"}
+
+    def to_python(self, value):
+        texto = " ".join((value or "").split())
+        if not texto:
+            return None, None
+        coincide = _PATRON_CONTENIDO.match(texto)
+        if not coincide:
+            raise forms.ValidationError(
+                "Escribe primero la cantidad y después la unidad. Por ejemplo: 350 ml."
+            )
+        try:
+            cantidad = Decimal(coincide["numero"].replace(",", "."))
+        except InvalidOperation:  # pragma: no cover - el patrón ya exige dígitos
+            raise forms.ValidationError("Escribe la cantidad con números.") from None
+        if cantidad <= 0 or cantidad > CONTENIDO_MAXIMO:
+            raise forms.ValidationError(
+                "El contenido debe ser mayor que cero y menor que un millón."
+            )
+        if cantidad != cantidad.quantize(Decimal("0.01")):
+            raise forms.ValidationError("El contenido admite hasta dos decimales.")
+        unidad = None
+        if coincide["unidad"]:
+            escrita = coincide["unidad"].lower().rstrip(".")
+            unidad = UNIDADES_ESCRITAS.get(escrita)
+            if unidad is None:
+                raise forms.ValidationError(
+                    f"No reconozco la unidad «{coincide['unidad']}». "
+                    "Usa g, kg, ml, cc, L, m o unidades."
+                )
+        return cantidad, unidad
+
+    def validate(self, value):
+        # La forma la revisa to_python; el campo es opcional.
+        pass
 
 
 class ProductoForm(FormularioBootstrap):
@@ -42,13 +89,11 @@ class ProductoForm(FormularioBootstrap):
         widget=forms.Textarea(attrs={"rows": 2}),
         help_text="Lo que ayude a reconocerlo: sabor, variedad, marca.",
     )
-    contenido = CampoDecimalConComa(
+    contenido = CampoContenido(
         label="Contenido (opcional)",
         required=False,
-        max_digits=8,
-        decimal_places=2,
-        min_value=Decimal("0.01"),
-        help_text="Lo que trae el envase. Por ejemplo: 350 ml, 1 kg, 6 unidades.",
+        help_text="Lo que trae el envase. Escríbelo junto, como «350 ml», «1,5 L» o "
+        "«6 unidades», o pon sólo el número y elige la unidad abajo.",
     )
     unidad_contenido = forms.ChoiceField(
         label="Unidad del contenido",
@@ -116,6 +161,17 @@ class ProductoForm(FormularioBootstrap):
         datos = super().clean()
         if datos.get("categoria") and (datos.get("categoria_nueva") or "").strip():
             self.add_error("categoria_nueva", MENSAJE_DOS_CATEGORIAS)
+        if "contenido" in datos:
+            datos["contenido"], escrita = datos["contenido"]
+            elegida = datos.get("unidad_contenido")
+            if escrita and elegida and escrita != elegida:
+                self.add_error(
+                    "unidad_contenido",
+                    f"En el contenido escribiste «{UnidadContenido(escrita).label}», pero "
+                    f"aquí elegiste «{UnidadContenido(elegida).label}». Deja una sola.",
+                )
+            elif escrita:
+                datos["unidad_contenido"] = escrita
         contenido = datos.get("contenido")
         unidad = datos.get("unidad_contenido")
         if "contenido" in datos and contenido is not None and not unidad:
