@@ -13,11 +13,13 @@ from django.urls import reverse
 
 from apps.reporteria.models import AccesoReporte, Alerta, TipoAlerta
 from apps.reporteria.servicios import alertar_stock_bajo, hoy_local, mes_anterior, primer_dia
+from apps.reporteria.test_periodos import creado_el
 from apps.reporteria.test_servicios import dar_de_alta_en, local, producto_ficticio, vender
 from conftest import usuario_de
 
 URL_REPORTE = "/reportes/mensual/"
 URL_API = "/api/reportes/mensual/"
+URL_API_PERIODO = "/api/reportes/"
 
 
 @pytest.fixture
@@ -95,9 +97,62 @@ class TestPantallaReporte:
 
     def test_el_selector_ofrece_los_meses_desde_el_inicio(self, client, tienda, admin):
         client.force_login(admin)
-        meses = client.get(URL_REPORTE).context["meses"]
-        assert meses[-1] == (date(2026, 1, 1), "Enero 2026")
-        assert meses[0][0] == primer_dia(hoy_local())
+        periodos = client.get(URL_REPORTE).context["periodos"]
+        assert (periodos[-1].inicio, periodos[-1].etiqueta) == (date(2026, 1, 1), "Enero 2026")
+        assert periodos[0].inicio == primer_dia(hoy_local())
+
+    def test_reporte_semanal_por_url_y_queda_registrado(
+        self, client, tienda, admin, con_ventas_en_septiembre
+    ):
+        client.force_login(admin)
+        respuesta = client.get(URL_REPORTE, {"periodo": "semana", "semana": "2026-09-09"})
+        html = respuesta.content.decode()
+        assert "Reporte de la semana del 7 al 13 de septiembre de 2026" in html
+        assert html.count('class="grafico-columna"') == 7
+        assert "Por día de la semana" not in html
+        assert "Frente a la semana anterior" in html
+        assert 'name="semana"' in html and 'value="2026-09-07" selected' in html
+        acceso = AccesoReporte.objects.del_almacen(tienda).get()
+        assert (acceso.tipo_periodo, acceso.mes_consultado) == ("semana", date(2026, 9, 7))
+
+    def test_reporte_anual_con_barras_por_mes(self, client, admin, con_ventas_en_septiembre):
+        client.force_login(admin)
+        html = client.get(URL_REPORTE, {"periodo": "anio", "anio": "2026"}).content.decode()
+        assert "Reporte del año 2026" in html
+        assert "Lo vendido cada mes" in html
+        assert "Mes con más venta" in html and "septiembre 2026" in html
+
+    def test_secciones_nuevas_del_reporte(
+        self, client, admin, tienda, con_ventas_en_septiembre
+    ):
+        # Registrado antes de septiembre: uno creado hoy no tuvo el mes para venderse.
+        creado_el(
+            producto_ficticio(tienda, "Sin Vender Ficticio", stock_actual=4), date(2026, 8, 1)
+        )
+        client.force_login(admin)
+        html = client.get(URL_REPORTE, {"mes": "2026-09"}).content.decode()
+        assert "Venta promedio" in html and "$750" in html
+        assert "y todos aparecen en los más vendidos" in html
+        assert "Sin Vender Ficticio" in html
+        assert "1 producto no se vendió ni una vez en el mes" in html
+        assert "Por categoría" in html and "Sin categoría" in html
+
+    def test_las_pestanas_cambian_de_tipo(self, client, admin):
+        client.force_login(admin)
+        html = client.get(URL_REPORTE, {"periodo": "semana"}).content.decode()
+        assert 'href="?periodo=anio"' in html
+        assert 'aria-current="page" href="?periodo=semana"' in html
+
+    def test_tipo_desconocido_vuelve_al_mes(self, client, admin):
+        client.force_login(admin)
+        respuesta = client.get(URL_REPORTE, {"periodo": "quincena"})
+        assert respuesta.context["reporte"].tipo == "mes"
+
+    def test_anio_futuro_vuelve_al_tipo_con_un_mensaje(self, client, admin):
+        client.force_login(admin)
+        respuesta = client.get(URL_REPORTE, {"periodo": "anio", "anio": "2999"}, follow=True)
+        assert "2999 todavía no empieza." in respuesta.content.decode()
+        assert respuesta.redirect_chain[0][0] == f"{URL_REPORTE}?periodo=anio"
 
 
 @pytest.mark.django_db
@@ -117,6 +172,38 @@ class TestAPIReporte:
         assert len(datos["por_dia"]) == 30
         assert datos["variacion"] is None and datos["motivo_sin_comparacion"]
         assert AccesoReporte.objects.del_almacen(tienda).count() == 1
+
+    def test_reporte_por_periodo_en_json(
+        self, client, tienda, admin, con_ventas_en_septiembre
+    ):
+        client.force_login(admin)
+        respuesta = client.get(URL_API_PERIODO, {"periodo": "semana", "semana": "2026-09-07"})
+        assert respuesta.status_code == 200
+        datos = respuesta.json()
+        assert datos["periodo"]["tipo"] == "semana"
+        assert datos["periodo"]["fin"] == "2026-09-14"
+        assert datos["cantidad_ventas"] == 2 and datos["ticket_promedio"] == 750
+        assert datos["sin_ventas"]["cantidad"] == 0
+        assert AccesoReporte.objects.del_almacen(tienda).get().tipo_periodo == "semana"
+
+    @pytest.mark.parametrize(
+        "parametros",
+        [
+            {},
+            {"periodo": "quincena"},
+            {"periodo": "anio", "anio": "26"},
+            {"periodo": "semana"},
+        ],
+    )
+    def test_periodo_invalido(self, client, admin, parametros):
+        client.force_login(admin)
+        respuesta = client.get(URL_API_PERIODO, parametros)
+        assert respuesta.status_code == 400 and respuesta.json()["detalle"]
+
+    def test_periodo_futuro_en_la_api(self, client, admin):
+        client.force_login(admin)
+        respuesta = client.get(URL_API_PERIODO, {"periodo": "anio", "anio": "2999"})
+        assert respuesta.status_code == 400
 
     def test_vendedor_no_tiene_acceso(self, client, tienda):
         client.force_login(usuario_de(tienda, "vendedor"))

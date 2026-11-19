@@ -21,8 +21,9 @@ defiende ante un docente y se pilotea en un almacén real.
 - **Tres capacidades, en orden de importancia:**
   1. Registrar productos **escaneando el código de barras**, sin digitar.
   2. Registrar ventas **descontando el stock en la misma transacción**.
-  3. **Reporte mensual**: más vendidos, días y horarios de mayor demanda, comparación
-     con meses anteriores (el diferenciador comercial frente a Loyverse o Bsale).
+  3. **Reporte por semana, mes o año**: más y menos vendidos, productos sin ventas,
+     días y horarios de mayor demanda, comparación con períodos anteriores (el
+     diferenciador comercial frente a Loyverse o Bsale).
 - **Idioma:** español de Chile, con tuteo («Ingresa», «Escribe»), sin voseo.
   Montos en pesos sin decimales (`$1.990`).
 
@@ -70,7 +71,7 @@ Todas usan Bootstrap 5 y funcionan en computador y celular. Menú superior verde
 | Ajuste de inventario | `/productos/<id>/ajustar/` | Conteo físico → el sistema calcula la diferencia. Motivos: diferencia de inventario, producto dañado, producto vencido, corrección administrativa. |
 | Categorías | `/productos/categorias/` | Crear categorías. |
 | Vendedores | `/cuentas/vendedores/` | Crear vendedores (correo único en toda la plataforma); por cada uno: «Cambiar contraseña», «Desactivar»/«Reactivar» y «Eliminar» (ver §4.6). |
-| Reporte | `/reportes/mensual/?mes=AAAA-MM` | Reporte mensual (ver §4.4). |
+| Reporte | `/reportes/mensual/?mes=AAAA-MM`, `?periodo=semana&semana=AAAA-MM-DD`, `?periodo=anio&anio=AAAA` | Reporte por semana, mes o año (ver §4.4). |
 | Indicadores | `/reportes/indicadores/?mes=AAAA-MM` | Los cuatro indicadores del piloto (ver §4.7). Por omisión, el mes en curso. |
 
 ### Sólo operador
@@ -137,24 +138,39 @@ stock vuelve con movimientos de entrada.
   rechaza explicando el motivo: cerrado el día, el reporte y la reposición ya se
   decidieron.
 
-### 4.4 Reporte mensual (CU-04)
-Sólo administrador. Se elige el mes (por omisión, el último mes cerrado). Muestra:
-- **Ventas y total vendido** del mes (sólo ventas vigentes; las anuladas no cuentan).
-- **Gráfico «Lo vendido cada día»:** una barra por día del período, con el día de más
-  venta destacado y nombrado arriba. Al pasar el cursor, tocar o llegar con el teclado
-  a un día se ve el monto y las ventas; «Ver el detalle por día» abre lo mismo en tabla.
-  Un día sin barra es un día sin ventas. En un mes en curso o iniciado a mitad de mes
-  sólo aparecen los días del período, sin inventar días en cero.
+### 4.4 Reporte por semana, mes o año (CU-04)
+Sólo administrador. Arriba, tres pestañas: **Semana** (lunes a domingo), **Mes** y
+**Año**; al lado, un selector con los períodos desde que el almacén empezó. Por
+omisión, el último período cerrado (el mes anterior; la semana pasada; el año en curso
+si el almacén no tenía registros el año anterior). Muestra:
+- **Ventas, total vendido, venta promedio** (total ÷ ventas, con las unidades
+  vendidas) y el cambio frente al período anterior. Sólo ventas vigentes.
+- **Gráfico:** «Lo vendido cada día» en la semana y el mes (en la semana cada barra
+  lleva su día: «lun 7»), «Lo vendido cada mes» en el año. Destaca el día o mes de más
+  venta; al pasar el cursor, tocar o llegar con el teclado se ve el monto y las ventas;
+  «Ver el detalle» abre lo mismo en tabla. Un período en curso o iniciado a la mitad
+  sólo muestra lo transcurrido, sin inventar días en cero.
 - **Productos más vendidos** (top 10 por unidades; los empates comparten lugar).
-- **Por día de la semana**, con **promedio por día** (un mes trae 4 o 5 de cada día).
+- **Productos menos vendidos:** se vendieron, pero poco (los 10 de más abajo), sin
+  repetir los que ya están entre los más vendidos; con el stock de hoy. Con 10
+  productos vendidos o menos dice que todos aparecen arriba.
+- **Productos sin ventas:** registrados antes de que termine el período y sin ninguna
+  venta en él; cuántos son, cuántas unidades tienen en stock y cuánto valen **a precio
+  de venta** (el sistema no guarda el costo). Lista los 20 con más stock; marca
+  «registrado el dd-mm» a los que se agregaron durante el período.
+- **Por categoría:** unidades y monto; los productos sin categoría van aparte.
+- **Por día de la semana** (mes y año), con **promedio por día** (un mes trae 4 o 5 de
+  cada día). En la semana no aparece: cada día está una vez en el gráfico.
 - **Por franja horaria:** Mañana 07:00–10:59 · Mediodía 11:00–13:59 · Tarde
   14:00–17:59 · Noche 18:00–21:59 · Resto 22:00–06:59 (supuestos iniciales, no
   medición).
-- **Comparación con meses anteriores** (hasta 6 meses), con variación % sólo entre
-  meses **completos y consecutivos**. Si no se puede comparar, lo dice y explica por
-  qué: mes en curso, mes anterior sin ventas, o almacén que empezó a mitad de mes.
-- Mes **sin ventas**: lo dice en vez de mostrar tablas vacías.
-- Cada consulta queda registrada (indicador «uso de la reportería»).
+- **Comparación con períodos anteriores** (8 semanas, 6 meses o 5 años), con
+  variación % sólo entre períodos **completos y seguidos**. Si no se puede comparar, lo
+  dice y explica por qué: período en curso, anterior sin ventas, o almacén que empezó a
+  la mitad.
+- Período **sin ventas**: lo dice en vez de mostrar tablas vacías.
+- Cada consulta queda registrada con su tipo de período (indicador «uso de la
+  reportería»).
 
 ### 4.5 Alertas (CU-05 y cierre de mes)
 Tareas programadas en Azure (WebJobs), hora de Chile:

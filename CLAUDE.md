@@ -80,9 +80,10 @@ Figura 7 del Informe 2 más las correcciones acordadas (marcadas con ★).
 **Congelado desde el paquete 1.3.2**: si un servicio necesita algo que el
 modelo no cubre, parar y preguntar. Cambios aprobados después: 1.4.3 (autor del
 producto y del movimiento, motivo del ajuste; aprobado el 2026-10-14), 1.4.4
-(tabla `alerta` para CU-05 y el cierre de mes; aprobado el 2026-10-16) y mejoras de
+(tabla `alerta` para CU-05 y el cierre de mes; aprobado el 2026-10-16), mejoras de
 producto (descripción y contenido opcionales; aprobado por el autor el 2026-11-15 con
-el pedido de la evaluación 3).
+el pedido de la evaluación 3) y `acceso_reporte.tipo_periodo` (reporte por semana, mes
+o año; aprobado por el autor el 2026-11-18).
 
 Semántica de `movimiento_stock`: `salida` + `id_venta` = venta; `entrada` +
 `id_venta` = restitución por anulación; `ajuste` = diferencia con signo y motivo.
@@ -197,8 +198,11 @@ movimiento_stock
   PK  id_acceso       BIGSERIAL
   FK  id_almacen      BIGINT -> almacen
   FK  id_usuario      BIGINT -> usuario
-      mes_consultado  DATE          -- primer día del mes consultado
+      mes_consultado  DATE          -- primer día del PERÍODO consultado (nombre histórico)
+★     tipo_periodo    VARCHAR(10)   DEFAULT 'mes'   -- 2026-11-18: 'semana','mes','anio'
       fecha_hora      TIMESTAMPTZ   DEFAULT now()
+★ CK  ck_acceso_reporte_periodo: (semana AND ISODOW(mes_consultado) = 1)
+     OR (mes AND día 1) OR (anio AND 1 de enero)
   IX  ix_acceso_almacen_fecha (id_almacen, fecha_hora)
 
 ★ franja_horaria
@@ -625,6 +629,20 @@ años.
   nombre/stock/precio) + `FiltroInventarioForm`; `?stock_bajo=1` sigue funcionando como
   `?stock=bajo`. Contenido en texto (`Producto.contenido_texto`, «1,5 L») en inventario,
   API `producto_por_codigo` (`contenido`), caja y comprobante. Búsqueda sin `unaccent`.
+- **Reporte por período (2026-11-18, rama `1.4.4-reportes-periodo`, pedido del autor):**
+  `apps/reporteria/periodos.py` (`Periodo`: semana lunes–domingo, mes, año; `leer_periodo`,
+  nombres y concordancias) y en `servicios.py` `reporte(almacen, periodo)` /
+  `consultar_reporte(...)`; `reporte_mensual` y `consultar_reporte_mensual` quedan como
+  envoltorios. Comparación genérica con `LAG()` sobre `TruncWeek/Month/Year` (8 semanas,
+  6 meses, 5 años), misma regla de períodos completos y seguidos. Nuevo: `menos_vendidos`
+  (dos `RANK()`, sin repetir el top 10), `sin_ventas` (`NOT EXISTS`, registrados antes del
+  fin del período, valor a precio de venta, marca «nuevo»), `ventas_por_categoria`,
+  venta promedio y unidades; el año grafica por mes (`ventas_por_mes`). 13 consultas
+  constantes. Pantalla: la misma `/reportes/mensual/` con pestañas
+  (`?periodo=semana&semana=…`, `?periodo=anio&anio=…`; sin `periodo` = mes, compatible
+  con el aviso de cierre). API `GET /api/reportes/?periodo=…`. Sólo el reporte mensual
+  da por visto el aviso de cierre de mes. Migración `reporteria/0004` (aplicar en
+  producción con el despliegue). Los indicadores siguen siendo mensuales.
 - Prueba de carga en Azure: `manage.py preparar_almacen_carga` (sólo almacenes de plan
   `carga`, nunca el piloto) + `pruebas_carga/locustfile.py` con `CARGA_EMAIL/CLAVE`.
 - Montos en pantalla con el filtro `pesos` (`{% load formato %}`).
