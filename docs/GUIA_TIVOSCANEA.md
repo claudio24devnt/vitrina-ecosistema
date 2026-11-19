@@ -21,8 +21,8 @@ defiende ante un docente y se pilotea en un almacén real.
 - **Tres capacidades, en orden de importancia:**
   1. Registrar productos **escaneando el código de barras**, sin digitar.
   2. Registrar ventas **descontando el stock en la misma transacción**.
-  3. **Reporte por semana, mes o año**: más y menos vendidos, productos sin ventas,
-     días y horarios de mayor demanda, comparación con períodos anteriores (el
+  3. **Reporte por semana, mes o año**: ganancia, más y menos vendidos, productos sin
+     ventas, días y horarios de mayor demanda, comparación con períodos anteriores (el
      diferenciador comercial frente a Loyverse o Bsale).
 - **Idioma:** español de Chile, con tuteo («Ingresa», «Escribe»), sin voseo.
   Montos en pesos sin decimales (`$1.990`).
@@ -37,7 +37,7 @@ defiende ante un docente y se pilotea en un almacén real.
 |---|---|---|
 | **Operador** | El autor del proyecto (dueño de la plataforma) | Dar de alta almacenes con su primer administrador (pantalla «Almacenes»). Además es administrador de su propio almacén «de operación». |
 | **Administrador** | El dueño del almacén | Todo lo del almacén: productos, stock, categorías, vendedores, ajustes de inventario, reporte mensual, alertas. También vende. |
-| **Vendedor** | Quien atiende la caja | Registrar y anular ventas, consultar el inventario. **No** ve reportes, **no** cambia precios ni stock a mano, **no** crea usuarios. |
+| **Vendedor** | Quien atiende la caja | Registrar y anular ventas, consultar el inventario. **No** ve reportes, costos ni ganancias, **no** cambia precios ni stock a mano, **no** crea usuarios. |
 
 Cada almacén ve **sólo sus propios datos** (multi-almacén aislado): un usuario nunca
 puede ver ni tocar productos, ventas o usuarios de otro almacén.
@@ -65,7 +65,7 @@ Todas usan Bootstrap 5 y funcionan en computador y celular. Menú superior verde
 
 | Pantalla | Ruta | Qué hace |
 |---|---|---|
-| Escanear producto | `/productos/escanear/` | Escanear un código: si existe, muestra el producto y permite **sumar stock**; si no, lleva al alta con el código ya puesto. |
+| Escanear producto | `/productos/escanear/` | Escanear un código: si existe, muestra el producto (con su costo) y permite **sumar stock**, anotando si se quiere el **costo nuevo por unidad**; si no, lleva al alta con el código ya puesto. |
 | Nuevo producto | `/productos/nuevo/` | Código, nombre, descripción (opcional), contenido y unidad (opcional), categoría **o una categoría nueva escrita ahí mismo**, precio, stock mínimo, stock inicial. |
 | Editar producto | `/productos/<id>/editar/` | Cambia datos, precio, descripción, contenido y categoría (también puede crear una nueva); **no** cambia el stock (eso va por entradas o ajustes). |
 | Ajuste de inventario | `/productos/<id>/ajustar/` | Conteo físico → el sistema calcula la diferencia. Motivos: diferencia de inventario, producto dañado, producto vencido, corrección administrativa. |
@@ -104,7 +104,16 @@ El stock inicial queda registrado como un movimiento de **entrada**.
   dos o ninguna. Es sólo informativo: **no** es venta por peso (eso es v2), no cambia
   stock ni ventas. Se ve en el inventario, en la caja junto al nombre y en el
   comprobante.
-- La alta rápida de la caja no pide descripción ni contenido; se completan editando.
+- **Costo por unidad** (opcional, 2026-11-19): lo que cobra el proveedor por cada
+  unidad, en pesos sin decimales. Sólo lo ve el administrador (alta, edición,
+  inventario y escaneo); el vendedor nunca lo ve, tampoco en la caja. Vacío significa
+  «no se sabe», nunca cero. Puede ser mayor que el precio (una oferta). Se actualiza al
+  editar el producto o al **sumar stock** («Costo por unidad, opcional»: si no cambió,
+  se deja vacío). Cada venta **guarda el costo que tenía el producto ese día**: cambiar
+  el costo no cambia la ganancia de ventas ya hechas. El inventario muestra la columna
+  «Costo» y `?costo=sin` lista los productos sin costo anotado.
+- La alta rápida de la caja no pide descripción, contenido ni costo; se completan
+  editando.
 
 ### 4.2 Registrar venta (CU-02) — el caso crítico
 Escanear cada producto → se arma el detalle → total → medio de pago (efectivo,
@@ -150,13 +159,21 @@ si el almacén no tenía registros el año anterior). Muestra:
   venta; al pasar el cursor, tocar o llegar con el teclado se ve el monto y las ventas;
   «Ver el detalle» abre lo mismo en tabla. Un período en curso o iniciado a la mitad
   sólo muestra lo transcurrido, sin inventar días en cero.
+- **Ganancia** (2026-11-19): lo vendido menos lo que costó, el **margen** (de cada $100
+  vendidos) y el costo de lo vendido. Usa el costo guardado en cada venta. Las ventas de
+  productos sin costo, y todas las anteriores al 19-11-2026, **no se cuentan como costo
+  cero**: quedan fuera y el reporte dice «Ganancia calculada sobre el 87,1 % de lo
+  vendido», cuántos productos vendidos no tenían costo y enlaza a completarlos. Si
+  ninguna venta tiene costo, explica cómo anotarlo en vez de mostrar una ganancia en
+  cero. Vender bajo el costo da ganancia negativa (en rojo).
 - **Productos más vendidos** (top 10 por unidades; los empates comparten lugar).
 - **Productos menos vendidos:** se vendieron, pero poco (los 10 de más abajo), sin
   repetir los que ya están entre los más vendidos; con el stock de hoy. Con 10
   productos vendidos o menos dice que todos aparecen arriba.
 - **Productos sin ventas:** registrados antes de que termine el período y sin ninguna
-  venta en él; cuántos son, cuántas unidades tienen en stock y cuánto valen **a precio
-  de venta** (el sistema no guarda el costo). Lista los 20 con más stock; marca
+  venta en él; cuántos son, cuántas unidades tienen en stock, cuánto valen **a precio
+  de venta** y **cuánto costaron** (sólo los que tienen costo; dice cuántos no lo
+  tienen). Lista los 20 con más stock; marca
   «registrado el dd-mm» a los que se agregaron durante el período.
 - **Por categoría:** unidades y monto; los productos sin categoría van aparte.
 - **Por día de la semana** (mes y año), con **promedio por día** (un mes trae 4 o 5 de
@@ -252,8 +269,8 @@ Si no hubo ventas o movimientos en el mes, la tarjeta lo dice en vez de mostrar 
 |---|---|
 | `almacen` | Razón social, RUT, plan, dirección, plazo de anulación |
 | `usuario` | Nombre, correo, rol (admin/vendedor), almacén |
-| `categoria`, `producto` | Catálogo: código de barras, precio, stock actual y mínimo, autor del alta; descripción y contenido (cantidad + unidad) opcionales |
-| `venta`, `detalle_venta` | Ventas con total, medio de pago, estado, datos de anulación |
+| `categoria`, `producto` | Catálogo: código de barras, precio, stock actual y mínimo, autor del alta; descripción, contenido (cantidad + unidad) y costo por unidad opcionales |
+| `venta`, `detalle_venta` | Ventas con total, medio de pago, estado, datos de anulación; cada línea guarda precio y costo del momento |
 | `movimiento_stock` | Bitácora de entradas, salidas y ajustes (con motivo) |
 | `franja_horaria` | Franjas del reporte, por almacén |
 | `acceso_reporte` | Cada consulta del reporte |
@@ -300,6 +317,10 @@ Si no hubo ventas o movimientos en el mes, la tarjeta lo dice en vez de mostrar 
   exige la extensión `unaccent` de PostgreSQL; no está instalada.
 - El comprobante muestra el contenido **actual** del producto, no el que tenía al
   momento de la venta (igual que el nombre).
+- La ganancia no se completa hacia atrás: las ventas anteriores al 19-11-2026 y las de
+  productos sin costo quedan fuera del cálculo (el reporte dice qué parte cubre). La
+  comparación con períodos anteriores sigue siendo por monto vendido, no por ganancia.
+  El costo es el último anotado (no promedia lotes comprados a distinto precio).
 
 ---
 

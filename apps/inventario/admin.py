@@ -19,6 +19,7 @@ class ProductoAdmin(admin.ModelAdmin):
         "nombre",
         "id_categoria",
         "precio",
+        "costo",
         "stock_actual",
         "stock_minimo",
     ]

@@ -40,8 +40,23 @@ class ProductoSerializer(serializers.ModelSerializer):
         ]
 
 
+def datos_del_producto(producto, usuario):
+    """
+    El producto en JSON. El costo va sólo para el administrador: esta misma respuesta la
+    recibe la caja del vendedor, y el vendedor no ve costos ni ganancias.
+    """
+    datos = ProductoSerializer(producto).data
+    if usuario.es_admin:
+        datos["costo"] = None if producto.costo is None else int(producto.costo)
+    return datos
+
+
 class EntradaSerializer(serializers.Serializer):
     cantidad = serializers.IntegerField(min_value=1, max_value=100000)
+    # Costo por unidad de lo que llegó (opcional): reemplaza el costo del producto.
+    costo = serializers.IntegerField(
+        min_value=0, max_value=9999999999, required=False, allow_null=True
+    )
 
 
 class ProductoPorCodigoAPI(APIView):
@@ -53,7 +68,9 @@ class ProductoPorCodigoAPI(APIView):
             return Response(
                 {"existe": False, "codigo": codigo.strip()}, status=status.HTTP_404_NOT_FOUND
             )
-        return Response({"existe": True, "producto": ProductoSerializer(producto).data})
+        return Response(
+            {"existe": True, "producto": datos_del_producto(producto, request.user)}
+        )
 
 
 class EntradaStockAPI(APIView):
@@ -68,17 +85,20 @@ class EntradaStockAPI(APIView):
         )
         entrada = EntradaSerializer(data=request.data)
         if not entrada.is_valid():
-            return Response(
-                {"detalle": "Escribe una cantidad entera mayor que cero."},
-                status=status.HTTP_400_BAD_REQUEST,
+            mensaje = (
+                "El costo va en pesos: un número entero, sin puntos ni signos."
+                if "costo" in entrada.errors
+                else "Escribe una cantidad entera mayor que cero."
             )
+            return Response({"detalle": mensaje}, status=status.HTTP_400_BAD_REQUEST)
         try:
             registrar_entrada_stock(
                 almacen=request.almacen,
                 producto=producto,
                 cantidad=entrada.validated_data["cantidad"],
                 usuario=request.user,
+                costo=entrada.validated_data.get("costo"),
             )
         except ReglaDeNegocioError as error:
             return Response({"detalle": str(error)}, status=status.HTTP_400_BAD_REQUEST)
-        return Response({"producto": ProductoSerializer(producto).data})
+        return Response({"producto": datos_del_producto(producto, request.user)})

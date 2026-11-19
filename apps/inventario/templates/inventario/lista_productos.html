@@ -25,7 +25,15 @@
 </div>
 {% endif %}
 
+{% if sin_costo %}
+<div class="alert alert-info d-flex flex-wrap justify-content-between align-items-center gap-2">
+    <span>Mostrando los productos sin costo anotado. Edita cada uno y escribe su costo por unidad para que entren en el cálculo de la ganancia.</span>
+    <a href="{% url 'inventario:lista_productos' %}" class="btn btn-sm btn-outline-dark">Ver todos</a>
+</div>
+{% endif %}
+
 <form method="get" class="row g-2 align-items-end mb-3" role="search" aria-label="Buscar y filtrar productos">
+    {% if sin_costo %}<input type="hidden" name="costo" value="sin">{% endif %}
     <div class="col-12 col-lg-4">
         <label for="{{ filtro.q.id_for_label }}" class="form-label small mb-1">{{ filtro.q.label }}</label>
         {{ filtro.q }}
@@ -56,6 +64,7 @@
                 <th>Producto</th>
                 <th class="d-none d-md-table-cell">Categoría</th>
                 <th class="text-end">Precio</th>
+                {% if user.es_admin %}<th class="text-end d-none d-lg-table-cell">Costo</th>{% endif %}
                 <th class="text-end">Stock</th>
                 <th class="text-end d-none d-sm-table-cell">Mínimo</th>
                 {% if user.es_admin %}<th></th>{% endif %}
@@ -75,6 +84,9 @@
                 </td>
                 <td class="d-none d-md-table-cell">{{ producto.id_categoria.nombre|default:"Sin categoría" }}</td>
                 <td class="text-end">{{ producto.precio|pesos }}</td>
+                {% if user.es_admin %}
+                <td class="text-end d-none d-lg-table-cell">{% if producto.costo is None %}<span class="text-secondary">Sin anotar</span>{% else %}{{ producto.costo|pesos }}{% endif %}</td>
+                {% endif %}
                 <td class="text-end fw-semibold">{{ producto.stock_actual }}</td>
                 <td class="text-end d-none d-sm-table-cell">{{ producto.stock_minimo }}</td>
                 {% if user.es_admin %}

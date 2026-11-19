@@ -59,6 +59,43 @@
     </div></div></div>
 </div>
 
+{% with g=reporte.ganancia %}
+<section class="mb-4" aria-labelledby="titulo-ganancia">
+    <h2 class="h5" id="titulo-ganancia">Ganancia</h2>
+    {% if not g.hay_costos %}
+    <div class="alert alert-light border mb-0">
+        Para ver la ganancia, anota el costo por unidad de tus productos: al registrarlos, al editarlos o al sumar stock.
+        Cada venta guarda el costo que tenía el producto ese día, así que la ganancia se calcula desde las próximas ventas.
+        <a href="{% url 'inventario:lista_productos' %}?costo=sin">Ver productos sin costo</a>.
+    </div>
+    {% else %}
+    <div class="row g-3">
+        <div class="col-6 col-md-4"><div class="card h-100"><div class="card-body">
+            <div class="small text-secondary">Ganancia</div>
+            <div class="cifra-grande{% if g.monto < 0 %} text-danger{% endif %}">{{ g.monto|pesos }}</div>
+            <div class="small text-secondary">Lo vendido menos lo que costó</div>
+        </div></div></div>
+        <div class="col-6 col-md-4"><div class="card h-100"><div class="card-body">
+            <div class="small text-secondary">Margen</div>
+            <div class="cifra-grande{% if g.margen < 0 %} text-danger{% endif %}">{{ g.margen|porcentaje }}</div>
+            <div class="small text-secondary">De cada $100 vendidos</div>
+        </div></div></div>
+        <div class="col-12 col-md-4"><div class="card h-100"><div class="card-body">
+            <div class="small text-secondary">Costo de lo vendido</div>
+            <div class="cifra-grande">{{ g.costo|pesos }}</div>
+        </div></div></div>
+    </div>
+    {% if not g.completa %}
+    <div class="alert alert-warning mt-3 mb-0">
+        Ganancia calculada sobre el {{ g.cobertura|porcentaje }} de lo vendido ({{ g.ventas_con_costo|pesos }} de {{ reporte.monto_total|pesos }}).
+        {{ g.productos_sin_costo }} producto{{ g.productos_sin_costo|pluralize }} vendido{{ g.productos_sin_costo|pluralize }} no tenía{{ g.productos_sin_costo|pluralize:"n" }} costo anotado al momento de la venta, así que no se puede saber cuánto dej{{ g.productos_sin_costo|pluralize:"ó,aron" }}.
+        <a href="{% url 'inventario:lista_productos' %}?costo=sin">Anota los costos que faltan</a>: cuentan desde las próximas ventas.
+    </div>
+    {% endif %}
+    {% endif %}
+</section>
+{% endwith %}
+
 {% with grafico=reporte.grafico %}
 <section class="mb-4">
     <h2 class="h5">{% if reporte.por_mes %}Lo vendido cada mes{% else %}Lo vendido cada día{% endif %}</h2>
@@ -153,7 +190,7 @@
 <section class="mb-4">
     <h2 class="h5">Productos sin ventas</h2>
     {% if reporte.sin_ventas.cantidad %}
-    <p class="mb-2">{{ reporte.sin_ventas.cantidad }} producto{{ reporte.sin_ventas.cantidad|pluralize }} no se vendi{{ reporte.sin_ventas.cantidad|pluralize:"ó,eron" }} ni una vez {{ reporte.periodo.en_el_periodo }}. Tienen {{ reporte.sin_ventas.unidades }} unidad{{ reporte.sin_ventas.unidades|pluralize:"es" }} en stock, {{ reporte.sin_ventas.valor|pesos }} a precio de venta.</p>
+    <p class="mb-2">{{ reporte.sin_ventas.cantidad }} producto{{ reporte.sin_ventas.cantidad|pluralize }} no se vendi{{ reporte.sin_ventas.cantidad|pluralize:"ó,eron" }} ni una vez {{ reporte.periodo.en_el_periodo }}. Tienen {{ reporte.sin_ventas.unidades }} unidad{{ reporte.sin_ventas.unidades|pluralize:"es" }} en stock, {{ reporte.sin_ventas.valor|pesos }} a precio de venta{% if reporte.sin_ventas.valor_costo %}; te costaron {{ reporte.sin_ventas.valor_costo|pesos }}{% if reporte.sin_ventas.sin_costo %}, sin contar {{ reporte.sin_ventas.sin_costo }} sin costo anotado{% endif %}{% endif %}.</p>
     <div class="table-responsive bg-white rounded shadow-sm">
         <table class="table align-middle mb-0">
             <thead class="table-light">

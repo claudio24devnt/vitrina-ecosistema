@@ -191,6 +191,9 @@ def _crear_detalle(venta, producto, cantidad, subtotal):
         cantidad=cantidad,
         precio_unitario=producto.precio,
         subtotal=subtotal,
+        # El costo vigente al confirmar (producto ya bloqueado en esta transacción): la
+        # ganancia de esta venta no cambia si después cambia el costo.
+        costo_unitario=producto.costo,
     )
 
 

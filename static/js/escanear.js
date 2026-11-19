@@ -41,6 +41,13 @@
         poner(tarjeta, "nombre", producto.nombre);
         poner(tarjeta, "categoria", producto.categoria || "Sin categoría");
         poner(tarjeta, "precio", formatearPesos(producto.precio));
+        poner(
+            tarjeta,
+            "costo",
+            producto.costo === null || producto.costo === undefined
+                ? "sin anotar"
+                : formatearPesos(producto.costo)
+        );
         poner(tarjeta, "stock_actual", producto.stock_actual);
         poner(tarjeta, "stock_minimo", producto.stock_minimo);
         tarjeta.querySelector('[data-campo="aviso_stock_bajo"]').hidden = !producto.stock_bajo;
@@ -88,6 +95,7 @@
 
     async function sumarStock(producto, formulario) {
         const entrada = formulario.querySelector("input[type=number]");
+        const campoCosto = formulario.querySelector("#costo-entrada");
         const error = formulario.querySelector('[data-campo="error"]');
         const cantidad = parseInt(entrada.value, 10);
         if (!Number.isInteger(cantidad) || cantidad < 1 || cantidad > 9999) {
@@ -95,6 +103,18 @@
             error.hidden = false;
             entrada.focus();
             return;
+        }
+        // «$1.290» y «1290» valen lo mismo: se quitan el signo, los puntos y los espacios.
+        const textoCosto = campoCosto.value.replace(/[$.\s]/g, "");
+        const cuerpo = { cantidad: cantidad };
+        if (textoCosto !== "") {
+            if (!/^\d{1,10}$/.test(textoCosto)) {
+                error.textContent = "El costo va en pesos, sin decimales. Por ejemplo: 1290.";
+                error.hidden = false;
+                campoCosto.focus();
+                return;
+            }
+            cuerpo.costo = parseInt(textoCosto, 10);
         }
         formulario.querySelector("button").disabled = true;
         try {
@@ -106,7 +126,7 @@
                     Accept: "application/json",
                     "X-CSRFToken": csrf,
                 },
-                body: JSON.stringify({ cantidad: cantidad }),
+                body: JSON.stringify(cuerpo),
             });
             const datos = await respuesta.json();
             if (!respuesta.ok) {
@@ -118,7 +138,10 @@
             mostrarAviso(
                 "success",
                 "Se sumaron " + cantidad + " unidades a «" + datos.producto.nombre +
-                    "». Stock actual: " + datos.producto.stock_actual + "."
+                    "». Stock actual: " + datos.producto.stock_actual + "." +
+                    ("costo" in cuerpo
+                        ? " Costo por unidad: " + formatearPesos(datos.producto.costo) + "."
+                        : "")
             );
             campo.value = "";
             enfocarCampo();

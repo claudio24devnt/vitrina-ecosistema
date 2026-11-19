@@ -70,6 +70,15 @@ class ProductoForm(FormularioBootstrap):
     precio = forms.DecimalField(
         label="Precio de venta ($)", min_value=0, max_digits=10, decimal_places=0
     )
+    costo = forms.DecimalField(
+        label="Costo por unidad ($) (opcional)",
+        required=False,
+        min_value=0,
+        max_digits=10,
+        decimal_places=0,
+        help_text="Lo que te cobra el proveedor por cada unidad. Sirve para calcular tu "
+        "ganancia. El vendedor no lo ve.",
+    )
     stock_minimo = forms.IntegerField(
         label="Stock mínimo",
         min_value=0,
@@ -85,6 +94,7 @@ class ProductoForm(FormularioBootstrap):
             {"autocomplete": "off", "inputmode": "numeric"}
         )
         self.fields["categoria_nueva"].widget.attrs.update({"autocomplete": "off"})
+        self.fields["costo"].widget.attrs.update({"inputmode": "numeric"})
         # Orden en pantalla: identificación, descripción, categoría, precio y stock.
         self.order_fields(
             [
@@ -96,6 +106,7 @@ class ProductoForm(FormularioBootstrap):
                 "categoria",
                 "categoria_nueva",
                 "precio",
+                "costo",
                 "stock_minimo",
             ]
         )

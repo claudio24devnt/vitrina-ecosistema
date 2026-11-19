@@ -46,6 +46,7 @@ COLUMNAS = {
         "descripcion": ("character varying(300)", True),
         "contenido": ("numeric(8,2)", True),
         "unidad_contenido": ("character varying(10)", True),
+        "costo": ("numeric(10,0)", True),
     },
     "venta": {
         "id_venta": ("bigint", False),
@@ -68,6 +69,7 @@ COLUMNAS = {
         "cantidad": ("integer", False),
         "precio_unitario": ("numeric(10,0)", False),
         "subtotal": ("numeric(12,0)", False),
+        "costo_unitario": ("numeric(10,0)", True),
     },
     "movimiento_stock": {
         "id_movimiento": ("bigint", False),
@@ -117,10 +119,12 @@ RESTRICCIONES = {
     "ck_producto_stock_actual",
     "ck_producto_contenido_coherente",
     "ck_producto_unidad_contenido",
+    "ck_producto_costo",
     "ck_venta_estado",
     "ck_venta_anulacion_coherente",
     "ck_venta_anulacion_posterior",
     "ck_detalle_venta_cantidad",
+    "ck_detalle_venta_costo_unitario",
     "ck_movimiento_stock_tipo",
     "ck_movimiento_stock_cantidad",
     "ck_movimiento_stock_motivo",
@@ -225,3 +229,19 @@ def test_restricciones_del_contenido_del_producto():
     unidad = filas["ck_producto_unidad_contenido"]
     for valor in ("'g'", "'kg'", "'ml'", "'L'", "'m'", "'un'"):
         assert valor in unidad
+
+
+@pytest.mark.django_db
+def test_restricciones_del_costo():
+    """El costo (2026-11-19) es opcional y nunca negativo, en producto y en el detalle."""
+    filas = dict(
+        _consultar(
+            "SELECT conname, pg_get_constraintdef(oid) FROM pg_constraint "
+            "WHERE conname IN (%s, %s)",
+            ["ck_producto_costo", "ck_detalle_venta_costo_unitario"],
+        )
+    )
+    assert "costo IS NULL" in filas["ck_producto_costo"]
+    assert "costo >= (0)" in filas["ck_producto_costo"]
+    assert "costo_unitario IS NULL" in filas["ck_detalle_venta_costo_unitario"]
+    assert "costo_unitario >= (0)" in filas["ck_detalle_venta_costo_unitario"]
