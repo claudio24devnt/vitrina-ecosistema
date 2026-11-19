@@ -45,7 +45,9 @@ def lista_productos(request):
         datos["stock"] = "bajo"
     filtro = FiltroInventarioForm(datos, almacen=request.almacen)
     criterios = filtro.criterios()
-    productos = filtrar_productos(request.almacen, **criterios)
+    # «?costo=sin» llega desde el reporte (completar costos). El vendedor no ve costos.
+    sin_costo = request.user.es_admin and datos.get("costo") == "sin"
+    productos = filtrar_productos(request.almacen, sin_costo=sin_costo, **criterios)
 
     total_stock_bajo = productos_con_stock_bajo(request.almacen).count()
     pagina = Paginator(productos, PRODUCTOS_POR_PAGINA).get_page(datos.get("pagina"))
@@ -62,7 +64,8 @@ def lista_productos(request):
             "pagina": pagina,
             "filtros": datos.urlencode(),
             "filtro": filtro,
-            "hay_filtros": hay_filtros,
+            "hay_filtros": hay_filtros or sin_costo,
+            "sin_costo": sin_costo,
             "solo_stock_bajo": criterios["stock"] == "bajo",
             "total_stock_bajo": total_stock_bajo,
         },
@@ -106,6 +109,7 @@ def nuevo_producto(request):
                     descripcion=datos["descripcion"],
                     contenido=datos["contenido"],
                     unidad_contenido=datos["unidad_contenido"],
+                    costo=datos["costo"],
                 )
             except CodigoDuplicadoError as error:
                 # CU-01 2a: no se duplica; se lleva al usuario a sumar stock al existente.
@@ -148,6 +152,7 @@ def editar_producto(request, id_producto):
                     descripcion=datos["descripcion"],
                     contenido=datos["contenido"],
                     unidad_contenido=datos["unidad_contenido"],
+                    costo=datos["costo"],
                 )
             except ReglaDeNegocioError as error:
                 form.add_error(None, str(error))
@@ -166,6 +171,7 @@ def editar_producto(request, id_producto):
                 "nombre": producto.nombre,
                 "categoria": producto.id_categoria_id,
                 "precio": producto.precio,
+                "costo": producto.costo,
                 "stock_minimo": producto.stock_minimo,
                 "descripcion": producto.descripcion or "",
                 "contenido": producto.contenido_cifra,

@@ -92,6 +92,13 @@ class Producto(ModeloDeAlmacen):
         blank=True,
         db_column="unidad_contenido",
     )
+    # 2026-11-19: costo por unidad que paga el almacén (último conocido). Opcional: NULL
+    # es «no se sabe», nunca cero. Lo ve sólo el administrador. Cada venta copia el
+    # vigente en detalle_venta.costo_unitario, así la ganancia de meses pasados no
+    # cambia cuando el proveedor sube el precio.
+    costo = models.DecimalField(
+        max_digits=10, decimal_places=0, null=True, blank=True, db_column="costo"
+    )
 
     class Meta:
         db_table = "producto"
@@ -118,6 +125,9 @@ class Producto(ModeloDeAlmacen):
                 condition=Q(unidad_contenido__isnull=True)
                 | Q(unidad_contenido__in=UnidadContenido.values),
                 name="ck_producto_unidad_contenido",
+            ),
+            models.CheckConstraint(
+                condition=Q(costo__isnull=True) | Q(costo__gte=0), name="ck_producto_costo"
             ),
         ]
         indexes = [models.Index(fields=["codigo_barras"], name="ix_producto_codigo")]

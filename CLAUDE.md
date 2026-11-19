@@ -82,8 +82,9 @@ modelo no cubre, parar y preguntar. Cambios aprobados después: 1.4.3 (autor del
 producto y del movimiento, motivo del ajuste; aprobado el 2026-10-14), 1.4.4
 (tabla `alerta` para CU-05 y el cierre de mes; aprobado el 2026-10-16), mejoras de
 producto (descripción y contenido opcionales; aprobado por el autor el 2026-11-15 con
-el pedido de la evaluación 3) y `acceso_reporte.tipo_periodo` (reporte por semana, mes
-o año; aprobado por el autor el 2026-11-18).
+el pedido de la evaluación 3), `acceso_reporte.tipo_periodo` (reporte por semana, mes
+o año; aprobado por el autor el 2026-11-18) y el costo (`producto.costo` y
+`detalle_venta.costo_unitario`; versión C, aprobada por el autor el 2026-11-19).
 
 Semántica de `movimiento_stock`: `salida` + `id_venta` = venta; `entrada` +
 `id_venta` = restitución por anulación; `ajuste` = diferencia con signo y motivo.
@@ -135,12 +136,15 @@ producto
 ★     descripcion     VARCHAR(300)  NULL           -- 2026-11-15, opcional
 ★     contenido       NUMERIC(8,2)  NULL           -- 2026-11-15: «350» de 350 ml; descriptivo,
 ★     unidad_contenido VARCHAR(10)  NULL           -- NO es venta por peso (v2)
+★     costo           NUMERIC(10,0) NULL           -- 2026-11-19: último costo por unidad;
+                                                 -- NULL = no se sabe (nunca cero). Sólo admin
   UQ  uq_producto (id_almacen, codigo_barras)
   CK  stock_actual >= 0
 ★ CK  ck_producto_contenido_coherente: (contenido IS NULL AND unidad_contenido IS NULL)
      OR (contenido IS NOT NULL AND contenido > 0 AND unidad_contenido IS NOT NULL)
 ★ CK  ck_producto_unidad_contenido: unidad_contenido IS NULL OR unidad_contenido IN
         ('g','kg','ml','L','m','un')     -- sin 'cc' (= ml; se rotula «ml (cc)»)
+★ CK  ck_producto_costo: costo IS NULL OR costo >= 0
   IX  ix_producto_codigo (codigo_barras)
 
 venta
@@ -170,7 +174,10 @@ detalle_venta
       cantidad        INTEGER
       precio_unitario NUMERIC(10,0)
       subtotal        NUMERIC(12,0)
+★     costo_unitario  NUMERIC(10,0) NULL   -- 2026-11-19: copia de producto.costo al vender;
+                                         -- NULL si no tenía o la venta es anterior
   CK  cantidad > 0
+★ CK  ck_detalle_venta_costo_unitario: costo_unitario IS NULL OR costo_unitario >= 0
   IX  ix_detalle_venta (id_venta)
 
 movimiento_stock
@@ -643,6 +650,18 @@ años.
   con el aviso de cierre). API `GET /api/reportes/?periodo=…`. Sólo el reporte mensual
   da por visto el aviso de cierre de mes. Migración `reporteria/0004` (aplicar en
   producción con el despliegue). Los indicadores siguen siendo mensuales.
+- **Costo y ganancia (2026-11-19, rama `1.4.2-costo-producto`, versión C aprobada por el
+  autor):** migraciones `inventario/0005` y `ventas/0002` (aditivas; aplicar en producción con
+  el despliegue). `validar_costo()` (opcional, entero, no negativo; puede superar al precio);
+  `registrar_producto`/`actualizar_producto`/`registrar_entrada_stock(costo=)`: sumar stock
+  con costo nuevo lo reemplaza. `registrar_venta` copia el costo del producto bloqueado en
+  `costo_unitario`. Sólo el admin lo ve: `datos_del_producto()` en `inventario/api.py` agrega
+  `costo` sólo para admin (la caja usa la misma API). Inventario: columna «Costo» y
+  `?costo=sin` (`filtrar_productos(sin_costo=)`). Reporte: `unidades_y_ganancia()` en la
+  misma consulta de las unidades (siguen 13): ganancia, margen, costo, `cobertura` y
+  `productos_sin_costo`; lo sin costo no cuenta como cero. `sin_ventas` agrega
+  `valor_costo`/`sin_costo`. Demo: `costo_ficticio()` (uno de cada seis sin costo). Sin
+  relleno hacia atrás; la comparación entre períodos sigue por monto.
 - Prueba de carga en Azure: `manage.py preparar_almacen_carga` (sólo almacenes de plan
   `carga`, nunca el piloto) + `pruebas_carga/locustfile.py` con `CARGA_EMAIL/CLAVE`.
 - Montos en pantalla con el filtro `pesos` (`{% load formato %}`).

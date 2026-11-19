@@ -276,8 +276,9 @@ def sin_ventas(almacen, desde, hasta):
     Productos registrados antes del fin del período que no tuvieron ninguna venta
     vigente en él: stock que no se mueve. Se ordenan por stock de hoy (el que más
     plata tiene parada primero). `nuevo` marca a los registrados durante el período,
-    que no estuvieron disponibles todos los días. El valor es a precio de venta: el
-    sistema no guarda el costo.
+    que no estuvieron disponibles todos los días. `valor` es a precio de venta (lo que
+    se dejó de vender); `valor_costo` es lo que costó ese stock, sólo de los que tienen
+    costo anotado (`sin_costo` cuenta los que no: no se suman como cero).
     """
     vendidos = _detalles_vigentes(almacen, desde, hasta).filter(id_producto=OuterRef("pk"))
     productos = (
@@ -289,10 +290,16 @@ def sin_ventas(almacen, desde, hasta):
         F("stock_actual") * F("precio"),
         output_field=DecimalField(max_digits=20, decimal_places=0),
     )
+    valor_costo = ExpressionWrapper(
+        F("stock_actual") * F("costo"),
+        output_field=DecimalField(max_digits=20, decimal_places=0),
+    )
     resumen = productos.aggregate(
         cantidad=Count("pk"),
         unidades=Coalesce(Sum("stock_actual"), 0),
         valor=Coalesce(Sum(valor), Decimal("0")),
+        valor_costo=Coalesce(Sum(valor_costo, filter=Q(costo__isnull=False)), Decimal("0")),
+        sin_costo=Count("pk", filter=Q(costo__isnull=True)),
     )
     inicio = inicio_del_dia(desde)
     filas = productos.order_by("-stock_actual", "nombre").values(
@@ -310,6 +317,46 @@ def sin_ventas(almacen, desde, hasta):
             }
             for fila in filas
         ],
+    }
+
+
+def unidades_y_ganancia(almacen, desde, hasta):
+    """
+    Unidades vendidas y ganancia del período en una sola consulta. La ganancia usa el
+    costo copiado en cada línea al vender (detalle_venta.costo_unitario), no el de hoy:
+    no cambia si después cambia el costo. Las líneas sin costo (producto sin costo
+    anotado o venta anterior al 2026-11-19) no se cuentan como costo cero: quedan fuera
+    y `cobertura` dice qué parte de lo vendido entró en el cálculo (§2.3).
+    """
+    con_costo = Q(costo_unitario__isnull=False)
+    costo_linea = ExpressionWrapper(
+        F("cantidad") * F("costo_unitario"),
+        output_field=DecimalField(max_digits=20, decimal_places=0),
+    )
+    filas = _detalles_vigentes(almacen, desde, hasta).aggregate(
+        unidades=Coalesce(Sum("cantidad"), 0),
+        monto=Coalesce(Sum("subtotal"), Decimal("0")),
+        monto_con_costo=Coalesce(Sum("subtotal", filter=con_costo), Decimal("0")),
+        costo=Coalesce(Sum(costo_linea, filter=con_costo), Decimal("0")),
+        lineas_con_costo=Count("pk", filter=con_costo),
+        productos_sin_costo=Count("id_producto", filter=~con_costo, distinct=True),
+    )
+    hay_costos = filas["lineas_con_costo"] > 0
+    ganancia = filas["monto_con_costo"] - filas["costo"]
+    return filas["unidades"], {
+        "hay_costos": hay_costos,
+        "monto": ganancia if hay_costos else None,
+        "ventas_con_costo": filas["monto_con_costo"],
+        "costo": filas["costo"],
+        # Margen sobre lo vendido que tiene costo; None si no hay con qué calcularlo.
+        "margen": (
+            _porcentaje(ganancia, filas["monto_con_costo"])
+            if hay_costos and filas["monto_con_costo"]
+            else None
+        ),
+        "cobertura": _porcentaje(filas["monto_con_costo"], filas["monto"]),
+        "completa": filas["productos_sin_costo"] == 0,
+        "productos_sin_costo": filas["productos_sin_costo"],
     }
 
 
@@ -642,6 +689,7 @@ class Reporte:
     mas_vendidos: list = field(default_factory=list)
     menos_vendidos: list = field(default_factory=list)
     sin_ventas: dict = field(default_factory=dict)
+    ganancia: dict = field(default_factory=dict)
     por_categoria: list = field(default_factory=list)
     # Barras del gráfico: por día (semana y mes) o por mes (año).
     por_dia: list = field(default_factory=list)
@@ -730,9 +778,7 @@ def reporte(almacen, periodo, hoy=None):
     resultado.monto_total = totales["monto"]
     resultado.mas_vendidos = mas_vendidos(almacen, inicio, fin)
     resultado.menos_vendidos = menos_vendidos(almacen, inicio, fin)
-    resultado.unidades = _detalles_vigentes(almacen, inicio, fin).aggregate(
-        unidades=Sum("cantidad")
-    )["unidades"]
+    resultado.unidades, resultado.ganancia = unidades_y_ganancia(almacen, inicio, fin)
     resultado.sin_ventas = sin_ventas(almacen, inicio, fin)
     resultado.por_categoria = ventas_por_categoria(almacen, inicio, fin)
     if periodo.tipo == TipoPeriodo.ANIO:

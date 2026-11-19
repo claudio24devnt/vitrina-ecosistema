@@ -136,6 +136,12 @@ class DetalleVenta(ModeloDeAlmacen):
     cantidad = models.IntegerField()
     precio_unitario = models.DecimalField(max_digits=10, decimal_places=0)
     subtotal = models.DecimalField(max_digits=12, decimal_places=0)
+    # 2026-11-19: costo del producto al confirmar la venta (copia, como precio_unitario).
+    # NULL si el producto no tenía costo o la venta es anterior al cambio: no se
+    # completa hacia atrás (sería inventar el costo de ese día, §2.3).
+    costo_unitario = models.DecimalField(
+        max_digits=10, decimal_places=0, null=True, blank=True, db_column="costo_unitario"
+    )
 
     class Meta:
         db_table = "detalle_venta"
@@ -145,7 +151,11 @@ class DetalleVenta(ModeloDeAlmacen):
         constraints = [
             models.CheckConstraint(
                 condition=Q(cantidad__gt=0), name="ck_detalle_venta_cantidad"
-            )
+            ),
+            models.CheckConstraint(
+                condition=Q(costo_unitario__isnull=True) | Q(costo_unitario__gte=0),
+                name="ck_detalle_venta_costo_unitario",
+            ),
         ]
         indexes = [models.Index(fields=["id_venta"], name="ix_detalle_venta")]
 

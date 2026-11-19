@@ -1,7 +1,7 @@
 """
 DATOS FICTICIOS para desarrollo y revisión local. No provienen del almacén piloto
-ni de ningún almacén real: el almacén, las personas, los productos, los precios y
-los patrones de venta (más venta el fin de semana y al mediodía) son INVENTADOS y
+ni de ningún almacén real: el almacén, las personas, los productos, los precios, los
+costos y los patrones de venta (más venta el fin de semana y al mediodía) son INVENTADOS y
 no son una medición. No usar para estimar indicadores (§2.3 y §7).
 
 Crea un almacén de demostración con un administrador, una vendedora, productos y
@@ -90,6 +90,18 @@ def _ultimo_pk(modelo, almacen):
     return modelo.objects.del_almacen(almacen).aggregate(m=Max("pk"))["m"] or 0
 
 
+def costo_ficticio(indice, precio):
+    """
+    Costo INVENTADO: entre 65 % y 80 % del precio, redondeado a $10. Uno de cada seis
+    productos queda sin costo, para que la demostración muestre también el aviso de
+    ganancia calculada sobre una parte de lo vendido.
+    """
+    if indice % 6 == 5:
+        return None
+    proporcion = Decimal("0.65") + Decimal("0.05") * (indice % 4)
+    return (Decimal(precio) * proporcion / 10).quantize(Decimal("1")) * 10
+
+
 class Command(BaseCommand):
     help = "Carga un almacén de demostración con DATOS FICTICIOS (sólo con DEBUG)."
 
@@ -176,6 +188,7 @@ class Command(BaseCommand):
                 categoria=categorias[categoria],
                 stock_minimo=minimo,
                 stock_inicial=minimo * 4,
+                costo=costo_ficticio(indice, precio),
             )
             productos.append((producto, popularidad))
         Producto.objects.del_almacen(almacen).update(fecha_creacion=inicio)
